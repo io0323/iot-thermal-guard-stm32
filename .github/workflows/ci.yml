@@ -47,3 +47,31 @@ jobs:
             contract.xml
             contract-log.jsonl
           if-no-files-found: warn
+
+  quality:
+    # 品質ゲート（P4）。手順は tools/quality.sh にまとめ、手元では tools/quality-docker.sh で同じものを流す。
+    # 合否はこのジョブ（ubuntu-24.04、apt の cppcheck・clang-tidy・doxygen、gcc）の結果を正とする。
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: ツール（apt）
+        run: sudo apt-get update && sudo apt-get install -y ninja-build cppcheck clang-tidy doxygen
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: ツール（uv）
+        run: uv tool install lizard && uv tool install gcovr
+
+      - name: 品質ゲート（カバレッジ・cppcheck・clang-tidy・lizard・Doxygen・禁止項目）
+        run: tools/quality.sh build/quality
+
+      - name: 品質ゲートの報告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: build/quality
+          if-no-files-found: warn
