@@ -1,0 +1,45 @@
+#include "cooling_policy.h"
+
+#define AUTO_START_C100 3500
+#define AUTO_FULL_C100 4500
+#define AUTO_MAX_PM 400
+
+uint16_t cooling_auto(int16_t t_c100)
+{
+    if (t_c100 < AUTO_START_C100) {
+        return 0u;
+    }
+    if (t_c100 >= AUTO_FULL_C100) {
+        return (uint16_t)AUTO_MAX_PM;
+    }
+    int32_t pm = ((int32_t)t_c100 - AUTO_START_C100) * AUTO_MAX_PM / 1000;
+    return (uint16_t)pm;
+}
+
+uint16_t cooling_floor(fsm_state_t s)
+{
+    switch (s) {
+    case ST_NORMAL:
+        return 0u;
+    case ST_WARNING:
+        return 700u;
+    case ST_INIT:
+    case ST_CRITICAL:
+    case ST_SENSOR_FAULT:
+    default:
+        return (uint16_t)DUTY_FULL_PM;
+    }
+}
+
+uint16_t cooling_duty(fsm_state_t s, int16_t t_c100, bool manual, uint16_t manual_pm, bool force_full)
+{
+    uint16_t duty = manual ? manual_pm : cooling_auto(t_c100);
+    uint16_t floor = cooling_floor(s);
+    if (floor > duty) {
+        duty = floor;
+    }
+    if (force_full) {
+        duty = (uint16_t)DUTY_FULL_PM;
+    }
+    return duty;
+}
