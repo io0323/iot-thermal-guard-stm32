@@ -23,7 +23,7 @@
 | 13 | 重複した GET_STATUS に STATE も送り直すか | A：ACK だけ／B：STATE も送り直す | A | 作品01 | 決定（2026-11-21）：GET_STATUS は STATE → ACK(done) の順に送る（STATE 待ちの作品03は ACK を捨てるため）。重複した GET_STATUS にも STATE を送り直してから前回の ACK を返す（読み出しで副作用がない）。ほかの op の重複は ACK だけ。設計書 第6章に反映済み |
 | 14 | 送信キューに ACK を入れられないとき、重複キャッシュに何を残すか（failed(internal) も送れない） | A：failed(internal) を残す／B：実際の実行結果を残す | A | 作品01 | 決定（2026-11-21）：実際の実行結果（done・rejected など）をそのまま残し、tx_dropped を数える。failed(internal) は現時点で使う場面がない。設計書 第6章に反映済み |
 | 15 | ホスト版ログ（JSON Lines）の各 kind の項目名が設計書にない | A：第8章の項目を snake_case のキーにする | A | 作品01 | 決定（2026-11-21）：推奨どおり。キーの一覧は README に書く |
-| 16 | 受信のフレームバッファ（224バイト）があふれたとき、どの破棄理由で数えるか（第6章は rx_overflow を「リングバッファが満杯」の説明でだけ使う） | A：rx_overflow／B：length_mismatch | A（あふれによる破棄なので） | 作品01 | 未決。P1 は A で実装（`service/link.c`） |
-| 17 | 60秒ごとの STATE が TELEMETRY・HEARTBEAT と同じ回に重なったときの順序（第2章の表は「TELEMETRY → HEARTBEAT、60秒ごとに STATE」） | A：TELEMETRY → HEARTBEAT → STATE／B：STATE を先に | A（表の書き順どおり） | 作品01 | 未決。P1 は A で実装（`service/report.c`） |
-| 18 | ホスト版で read・write が EIO 以外のエラーを返したときの終了コード（第8章は 0／EIO だけを定める） | A：1（異常終了）／B：0 | A | 作品01 | 未決。P1 は A で実装（診断値はどちらでもログに書く） |
-| 19 | rejected（引数あり）だった GET_STATUS の重複に STATE を送り直すか（#13 は GET_STATUS の重複に STATE を送り直すとだけ定める） | A：送らない（1回目も STATE を送っていないので）／B：送る | A | 作品01 | 未決。P1 は A で実装（`app/command_handler.c`） |
+| 16 | 受信のフレームバッファ（224バイト）があふれたとき、どの破棄理由で数えるか（第6章は rx_overflow を「リングバッファが満杯」の説明でだけ使う） | A：rx_overflow／B：length_mismatch | A（あふれによる破棄なので） | 作品01 | 決定（2026-11-21）：A。受信バッファのあふれは rx_overflow |
+| 17 | 60秒ごとの STATE が TELEMETRY・HEARTBEAT と同じ回に重なったときの順序（第2章の表は「TELEMETRY → HEARTBEAT、60秒ごとに STATE」） | A：TELEMETRY → HEARTBEAT → STATE／B：STATE を先に | A（表の書き順どおり） | 作品01 | 決定（2026-11-21）：A。60秒ごとの STATE は TELEMETRY → HEARTBEAT の後 |
+| 18 | ホスト版で read・write が EIO 以外のエラーを返したときの終了コード（第8章は 0／EIO だけを定める） | A：1（異常終了）／B：0 | A | 作品01 | 決定（2026-11-21）：A。EIO 以外の入出力エラーは終了コード 1 |
+| 19 | rejected（引数あり）だった GET_STATUS の重複に STATE を送り直すか（#13 は GET_STATUS の重複に STATE を送り直すとだけ定める） | A：送らない（1回目も STATE を送っていないので）／B：送る | A | 作品01 | 決定（2026-11-21）：A。rejected だった GET_STATUS の重複には STATE を送り直さない |
