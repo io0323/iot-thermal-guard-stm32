@@ -1,5 +1,7 @@
 #include "button.h"
 
+#include <stdint.h>
+
 static void push(button_t *b, button_event_t ev)
 {
     if (b->count >= BUTTON_QUEUE_LEN) {
@@ -13,11 +15,11 @@ static void push(button_t *b, button_event_t ev)
 void button_init(button_t *b)
 {
     b->pressed = false;
-    b->differ = 0u;
-    b->press_ms = 0u;
+    b->differ = 0U;
+    b->press_ms = 0U;
     b->long_fired = false;
-    b->head = 0u;
-    b->count = 0u;
+    b->head = 0U;
+    b->count = 0U;
 }
 
 void button_update(button_t *b, bool pressed, uint32_t now)
@@ -28,14 +30,14 @@ void button_update(button_t *b, bool pressed, uint32_t now)
         push(b, BTN_EV_LONG);
     }
     if (pressed == b->pressed) {
-        b->differ = 0u;
+        b->differ = 0U;
         return;
     }
     b->differ++;
     if (b->differ < BUTTON_DEBOUNCE_READS) {
         return;
     }
-    b->differ = 0u;
+    b->differ = 0U;
     b->pressed = pressed;
     if (pressed) {
         b->press_ms = now;
@@ -49,11 +51,11 @@ void button_update(button_t *b, bool pressed, uint32_t now)
 
 bool button_pop(button_t *b, button_event_t *ev)
 {
-    if (b->count == 0u) {
+    if (b->count == 0U) {
         return false;
     }
     *ev = b->q[b->head];
-    b->head = (uint8_t)((b->head + 1u) % BUTTON_QUEUE_LEN);
+    b->head = (uint8_t)((b->head + 1U) % BUTTON_QUEUE_LEN);
     b->count--;
     return true;
 }

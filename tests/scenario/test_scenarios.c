@@ -229,6 +229,7 @@ static void test_init_adc_stall(void)
     TEST_ASSERT_EQUAL_UINT8(EV_BOOT, l->tx[1].f.u.event.code);
     TEST_ASSERT_EQUAL_UINT8(FRAME_EVENT, l->tx[2].f.type);
     TEST_ASSERT_EQUAL_UINT8(EV_SENSOR_FAULT, l->tx[2].f.u.event.code);
+    TEST_ASSERT_EQUAL_UINT32(2000, l->tx[2].f.u.event.uptime_ms); /* send_event の引数の取り違え（#41）も検出する */
     TEST_ASSERT_EQUAL_UINT8(SEV_CRITICAL, l->tx[2].f.u.event.severity);
     TEST_ASSERT_EQUAL_UINT8(ST_INIT, l->tx[2].f.u.event.from);
     TEST_ASSERT_EQUAL_UINT8(ST_SENSOR_FAULT, l->tx[2].f.u.event.to);

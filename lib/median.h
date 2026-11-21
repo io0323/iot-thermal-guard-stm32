@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MEDIAN_N 5u
+#define MEDIAN_N 5U
 
 /** メディアンの窓。 */
 typedef struct {

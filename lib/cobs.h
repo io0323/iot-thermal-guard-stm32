@@ -10,7 +10,7 @@
 #include <stdint.h>
 
 /** 長さ n のデータを符号化したときの最大の長さ（区切りなし）。 */
-#define COBS_MAX_ENCODED(n) ((n) + ((n) / 254u) + 1u)
+#define COBS_MAX_ENCODED(n) ((n) + ((n) / 254U) + 1U)
 
 /**
  * @brief COBS で符号化する。出力に 0x00 は含まれず、区切りの 0x00 は付けない。

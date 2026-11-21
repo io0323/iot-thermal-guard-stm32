@@ -11,9 +11,9 @@
 
 #include "link_frame.h"
 
-#define LINK_RX_BUF_SIZE 224u  /**< 0x00 までをためるフレームバッファ */
-#define LINK_TXQ_SLOTS 16u     /**< 送信キューの枠数 */
-#define LINK_TX_PAYLOAD_MAX 16u /**< 枠に入れるペイロードの最大（作品01が送るのは最大10バイト） */
+#define LINK_RX_BUF_SIZE 224U  /**< 0x00 までをためるフレームバッファ */
+#define LINK_TXQ_SLOTS 16U     /**< 送信キューの枠数 */
+#define LINK_TX_PAYLOAD_MAX 16U /**< 枠に入れるペイロードの最大（作品01が送るのは最大10バイト） */
 
 /** 種別ごとの seq カウンタの添字（作品01が送る種別だけ）。 */
 typedef enum { LINK_SEQ_TELEMETRY, LINK_SEQ_EVENT, LINK_SEQ_HEARTBEAT, LINK_SEQ_STATE, LINK_SEQ_ACK, LINK_SEQ_COUNT } link_seq_index_t;

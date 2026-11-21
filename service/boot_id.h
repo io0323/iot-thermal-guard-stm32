@@ -9,7 +9,7 @@
 
 #include "ports.h"
 
-#define BOOT_ID_ENTROPY_MAX 64u
+#define BOOT_ID_ENTROPY_MAX 64U
 
 /**
  * @brief boot_id を作る。

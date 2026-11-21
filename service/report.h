@@ -15,9 +15,9 @@
 
 #include "link_frame.h"
 
-#define REPORT_PERIOD_MS 1000u
-#define REPORT_STATE_PERIOD_MS 60000u
-#define REPORT_MAX_FRAMES 3u
+#define REPORT_PERIOD_MS 1000U
+#define REPORT_STATE_PERIOD_MS 60000U
+#define REPORT_MAX_FRAMES 3U
 
 /** 送る値の写し。 */
 typedef struct {

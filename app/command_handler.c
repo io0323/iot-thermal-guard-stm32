@@ -1,7 +1,12 @@
 #include "command_handler.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "byteorder.h"
 #include "cooling_policy.h"
+#include "link_frame.h"
+#include "safety_fsm.h"
 #include "sat.h"
 #include "thresholds.h"
 
@@ -10,15 +15,15 @@ void cmd_init(cmd_handler_t *h)
     for (uint8_t i = 0; i < CMD_CACHE_SIZE; i++) {
         h->cache[i].valid = false;
     }
-    h->cache_next = 0u;
+    h->cache_next = 0U;
     h->override_active = false;
-    h->override_pm = 0u;
-    h->override_expires_ms = 0u;
+    h->override_pm = 0U;
+    h->override_expires_ms = 0U;
     h->warn_c100 = (int16_t)THRESHOLD_WARN_C100;
     h->crit_c100 = (int16_t)THRESHOLD_CRIT_C100;
     h->hyst_c100 = (int16_t)THRESHOLD_HYST_C100;
-    h->cmd_dropped_init = 0u;
-    h->cmd_duplicates = 0u;
+    h->cmd_dropped_init = 0U;
+    h->cmd_duplicates = 0U;
 }
 
 static const cmd_cache_entry_t *cache_find(const cmd_handler_t *h, uint16_t cmd_ref)
@@ -41,20 +46,20 @@ static void cache_put(cmd_handler_t *h, uint8_t op, const link_ack_t *a)
     e->reason = a->reason;
     e->limited = a->limited;
     e->applied = a->applied;
-    h->cache_next = (uint8_t)((h->cache_next + 1u) % CMD_CACHE_SIZE);
+    h->cache_next = (uint8_t)((h->cache_next + 1U) % CMD_CACHE_SIZE);
 }
 
 static void reject(link_ack_t *a, ack_reason_t reason)
 {
     a->status = (uint8_t)ACK_REJECTED;
     a->reason = (uint8_t)reason;
-    a->limited = 0u;
-    a->applied = 0u;
+    a->limited = 0U;
+    a->applied = 0U;
 }
 
 static void set_fan_override(cmd_handler_t *h, const link_cmd_t *c, uint32_t now, const cmd_env_t *env, cmd_result_t *out)
 {
-    if (c->args_len != 2u) {
+    if (c->args_len != 2U) {
         reject(&out->ack, REASON_INVALID_ARG);
         return;
     }
@@ -65,11 +70,11 @@ static void set_fan_override(cmd_handler_t *h, const link_cmd_t *c, uint32_t now
     }
     h->override_active = true;
     h->override_pm = duty;
-    h->override_expires_ms = now + ((uint32_t)c->ttl_s * 1000u);
+    h->override_expires_ms = now + ((uint32_t)c->ttl_s * 1000U);
     out->output_changed = true;
     uint16_t applied = cooling_duty(env->state, env->temp_c100, true, duty, env->force_full);
     out->ack.applied = applied;
-    out->ack.limited = (duty < applied) ? 1u : 0u;
+    out->ack.limited = (duty < applied) ? 1U : 0U;
 }
 
 static bool threshold_valid(int16_t warn, int16_t crit, int16_t hyst)
@@ -85,7 +90,7 @@ static bool threshold_valid(int16_t warn, int16_t crit, int16_t hyst)
 
 static void set_threshold(cmd_handler_t *h, const link_cmd_t *c, const cmd_env_t *env, cmd_result_t *out)
 {
-    if (c->args_len != 6u) {
+    if (c->args_len != 6U) {
         reject(&out->ack, REASON_INVALID_ARG);
         return;
     }
@@ -108,7 +113,7 @@ static void set_threshold(cmd_handler_t *h, const link_cmd_t *c, const cmd_env_t
 /* 引数なしの op（CLEAR_OVERRIDE・GET_STATUS・GET_DIAG） */
 static void no_arg_op(cmd_handler_t *h, const link_cmd_t *c, cmd_result_t *out)
 {
-    if (c->args_len != 0u) {
+    if (c->args_len != 0U) {
         reject(&out->ack, REASON_INVALID_ARG);
         return;
     }

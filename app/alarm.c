@@ -1,15 +1,20 @@
 #include "alarm.h"
 
-#define INIT_STEP_MS 100u
-#define WARN_PERIOD_MS 1000u
-#define CRIT_LED_PERIOD_MS 250u
-#define CRIT_BUZZER_PERIOD_MS 500u
-#define FORCE_PERIOD_MS 500u
+#include <stdint.h>
+
+#include "ports.h"
+#include "safety_fsm.h"
+
+#define INIT_STEP_MS 100U
+#define WARN_PERIOD_MS 1000U
+#define CRIT_LED_PERIOD_MS 250U
+#define CRIT_BUZZER_PERIOD_MS 500U
+#define FORCE_PERIOD_MS 500U
 
 /* 周期 period の前半（50%）なら true */
 static bool first_half(uint32_t elapsed, uint32_t period)
 {
-    return (elapsed % period) < (period / 2u);
+    return (elapsed % period) < (period / 2U);
 }
 
 static bool silenceable(fsm_state_t s)
@@ -24,6 +29,8 @@ void alarm_init(alarm_t *a, uint32_t now)
     a->silenced = false;
 }
 
+/* 取り違えの検出：s と now の取り違えは test_alarm の test_critical_red_4hz_buzzer_250・test_warning_yellow_1hz で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 void alarm_set_state(alarm_t *a, fsm_state_t s, uint32_t now)
 {
     if (s == a->state) {
@@ -49,8 +56,8 @@ void alarm_silence(alarm_t *a)
 static void init_pattern(uint32_t el, alarm_out_t *out)
 {
     out->led[LED_RED] = el < INIT_STEP_MS;
-    out->led[LED_YELLOW] = el >= INIT_STEP_MS && el < (2u * INIT_STEP_MS);
-    out->led[LED_GREEN] = el >= (2u * INIT_STEP_MS) && el < (3u * INIT_STEP_MS);
+    out->led[LED_YELLOW] = el >= INIT_STEP_MS && el < (2U * INIT_STEP_MS);
+    out->led[LED_GREEN] = el >= (2U * INIT_STEP_MS) && el < (3U * INIT_STEP_MS);
     out->buzzer = el < INIT_STEP_MS;
 }
 

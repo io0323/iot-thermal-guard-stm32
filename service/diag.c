@@ -1,5 +1,7 @@
 #include "diag.h"
 
+#include <stdint.h>
+
 #include "sat.h"
 
 void diag_collect(diag_t *out, const diag_sources_t *src)

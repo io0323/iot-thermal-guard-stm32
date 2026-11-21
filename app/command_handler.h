@@ -15,9 +15,9 @@
 #include "link_frame.h"
 #include "safety_fsm.h"
 
-#define CMD_CACHE_SIZE 16u
-#define CMD_TTL_MIN_S 1u
-#define CMD_TTL_MAX_S 600u
+#define CMD_CACHE_SIZE 16U
+#define CMD_TTL_MIN_S 1U
+#define CMD_TTL_MAX_S 600U
 #define CMD_WARN_MIN_C100 (-2000)
 #define CMD_CRIT_MAX_C100 8000
 #define CMD_HYST_MIN_C100 50

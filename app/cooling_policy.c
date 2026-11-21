@@ -1,5 +1,9 @@
 #include "cooling_policy.h"
 
+#include <stdint.h>
+
+#include "safety_fsm.h"
+
 #define AUTO_START_C100 3500
 #define AUTO_FULL_C100 4500
 #define AUTO_MAX_PM 400
@@ -7,7 +11,7 @@
 uint16_t cooling_auto(int16_t t_c100)
 {
     if (t_c100 < AUTO_START_C100) {
-        return 0u;
+        return 0U;
     }
     if (t_c100 >= AUTO_FULL_C100) {
         return (uint16_t)AUTO_MAX_PM;
@@ -20,9 +24,9 @@ uint16_t cooling_floor(fsm_state_t s)
 {
     switch (s) {
     case ST_NORMAL:
-        return 0u;
+        return 0U;
     case ST_WARNING:
-        return 700u;
+        return 700U;
     case ST_INIT:
     case ST_CRITICAL:
     case ST_SENSOR_FAULT:
@@ -31,6 +35,8 @@ uint16_t cooling_floor(fsm_state_t s)
     }
 }
 
+/* 取り違えの検出：s と t_c100 の取り違えは test_cooling_policy の test_auto_vs_floor で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 uint16_t cooling_duty(fsm_state_t s, int16_t t_c100, bool manual, uint16_t manual_pm, bool force_full)
 {
     uint16_t duty = manual ? manual_pm : cooling_auto(t_c100);

@@ -23,7 +23,7 @@
 #include "ports.h"
 #include "safety_fsm.h"
 
-#define ALARM_LED_COUNT 3u
+#define ALARM_LED_COUNT 3U
 
 /** 出力。led は led_t（LED_GREEN・LED_YELLOW・LED_RED）で引く。 */
 typedef struct {

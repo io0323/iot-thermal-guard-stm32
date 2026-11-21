@@ -15,7 +15,7 @@
 #include "ports.h"
 #include "scheduler.h"
 
-#define DIAG_TASK_COUNT 6u /**< sense, control, link, ui, report, health */
+#define DIAG_TASK_COUNT 6U /**< sense, control, link, ui, report, health */
 
 /** 診断値。 */
 typedef struct {

@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MOVING_AVG_N 8u
+#define MOVING_AVG_N 8U
 
 /** 移動平均の窓。 */
 typedef struct {

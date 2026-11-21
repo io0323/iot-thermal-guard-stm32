@@ -16,8 +16,8 @@
 
 #include "temp_sensor.h"
 
-#define FSM_HOLD_STEPS 10u        /**< 1秒継続 = 10回連続 */
-#define FSM_RECOVER_VALID_RUN 10u /**< SENSOR_FAULT からの復帰に要る正常の連続回数 */
+#define FSM_HOLD_STEPS 10U        /**< 1秒継続 = 10回連続 */
+#define FSM_RECOVER_VALID_RUN 10U /**< SENSOR_FAULT からの復帰に要る正常の連続回数 */
 
 /** 状態（UART の state の番号と同じ）。 */
 typedef enum { ST_INIT = 0, ST_NORMAL = 1, ST_WARNING = 2, ST_CRITICAL = 3, ST_SENSOR_FAULT = 4 } fsm_state_t;

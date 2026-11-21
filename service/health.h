@@ -14,7 +14,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define HEALTH_REPORT_DEADLINE_MS 1500u /**< report の最後の実行からの期限 */
+#define HEALTH_REPORT_DEADLINE_MS 1500U /**< report の最後の実行からの期限 */
 
 /** 生存報告をするタスク（周期が100ms 以下のもの）。 */
 typedef enum { HEALTH_SENSE, HEALTH_CONTROL, HEALTH_LINK, HEALTH_UI, HEALTH_TASK_COUNT } health_task_t;

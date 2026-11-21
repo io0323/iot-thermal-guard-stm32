@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 
-#define UPSTREAM_LOST_MS 10000u
+#define UPSTREAM_LOST_MS 10000U
 
 /** 上位の状態。 */
 typedef enum { UPSTREAM_UNKNOWN, UPSTREAM_ALIVE, UPSTREAM_LOST } upstream_state_t;

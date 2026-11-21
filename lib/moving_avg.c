@@ -1,10 +1,12 @@
 #include "moving_avg.h"
 
+#include <stdint.h>
+
 void moving_avg8_init(moving_avg8_t *a)
 {
     a->sum = 0;
-    a->count = 0u;
-    a->next = 0u;
+    a->count = 0U;
+    a->next = 0U;
     for (uint8_t i = 0; i < MOVING_AVG_N; i++) {
         a->buf[i] = 0;
     }
@@ -19,7 +21,7 @@ void moving_avg8_push(moving_avg8_t *a, int16_t v)
     }
     a->buf[a->next] = v;
     a->sum += v;
-    a->next = (uint8_t)((a->next + 1u) % MOVING_AVG_N);
+    a->next = (uint8_t)((a->next + 1U) % MOVING_AVG_N);
 }
 
 bool moving_avg8_full(const moving_avg8_t *a)
@@ -29,7 +31,7 @@ bool moving_avg8_full(const moving_avg8_t *a)
 
 int16_t moving_avg8_value(const moving_avg8_t *a)
 {
-    if (a->count == 0u) {
+    if (a->count == 0U) {
         return 0;
     }
     int32_t n = (int32_t)a->count;

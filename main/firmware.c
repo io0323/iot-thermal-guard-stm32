@@ -14,14 +14,21 @@
  */
 #include "firmware.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
 #include "alarm.h"
 #include "boot_id.h"
 #include "button.h"
 #include "command_handler.h"
 #include "cooling_policy.h"
+#include "diag.h"
 #include "health.h"
 #include "link.h"
+#include "link_frame.h"
+#include "ports.h"
 #include "report.h"
+#include "safety_fsm.h"
 #include "scheduler.h"
 #include "temp_sensor.h"
 #include "upstream.h"
@@ -38,12 +45,12 @@ static void task_health(uint32_t now);
 
 /* 表の順：sense → control → link → ui → report → health。control は sense と同じ位相 */
 static sched_task_t s_tasks[FW_TASK_COUNT] = {
-    {task_sense, 100u, 0u, false, 0u},
-    {task_control, 100u, 0u, false, 0u},
-    {task_link, 10u, 0u, false, 0u},
-    {task_ui, 10u, 0u, false, 0u},
-    {task_report, 1000u, 0u, false, 0u}, /* INIT を抜けた時刻 +1000ms から */
-    {task_health, 100u, 0u, false, 0u},
+    {task_sense, 100U, 0U, false, 0U},
+    {task_control, 100U, 0U, false, 0U},
+    {task_link, 10U, 0U, false, 0U},
+    {task_ui, 10U, 0U, false, 0U},
+    {task_report, 1000U, 0U, false, 0U}, /* INIT を抜けた時刻 +1000ms から */
+    {task_health, 100U, 0U, false, 0U},
 };
 
 static const ports_t *s_p;
@@ -109,6 +116,8 @@ static void send_state(uint32_t now)
 }
 
 /* temp_c100 はその時点の値（センサー故障中は −32768。open-questions #10） */
+/* 取り違えの検出：並ぶ5つの取り違えは test_scenarios の test_init_adc_stall（uptime 2000・コード5・重大度2・from 0・to 4）で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 static void send_event(uint32_t now, event_code_t code, severity_t sev, uint8_t from, uint8_t to)
 {
     temp_reading_t r;
@@ -125,7 +134,7 @@ static void send_event(uint32_t now, event_code_t code, severity_t sev, uint8_t 
 
 static void task_sense(uint32_t now)
 {
-    uint16_t raw = 0u;
+    uint16_t raw = 0U;
     if (s_p->adc->take_sample(&raw)) {
         temp_update(raw, now);
     }
@@ -136,7 +145,7 @@ static void task_sense(uint32_t now)
 static void on_init_exit(uint32_t now, const fsm_output_t *o)
 {
     send_state(now);
-    send_event(now, EV_BOOT, SEV_INFO, 0u, 0u); /* from・to は 0（CR-2） */
+    send_event(now, EV_BOOT, SEV_INFO, 0U, 0U); /* from・to は 0（CR-2） */
     send_event(now, (event_code_t)o->event_code, (severity_t)o->severity, (uint8_t)o->from, (uint8_t)o->to);
     report_start(&s_report, now);
     health_report_ran(&s_health, now); /* report がまだ動いていない間の期限の起点（第7章） */
@@ -213,12 +222,12 @@ static void receive(uint32_t now)
 {
     uint8_t buf[64];
     size_t n;
-    while ((n = s_p->uart->read(buf, sizeof buf)) > 0u) {
+    while ((n = s_p->uart->read(buf, sizeof buf)) > 0U) {
         for (size_t i = 0; i < n; i++) {
             link_frame_t f;
             link_rx_error_t err = LINK_RX_OK;
             link_rx_status_t st = link_rx_byte(&s_link, buf[i], &f, &err);
-            size_t raw_len = 0u;
+            size_t raw_len = 0U;
             const uint8_t *raw = link_rx_last_raw(&s_link, &raw_len);
             if (st == LINK_RX_FRAME) {
                 if (s_obs != NULL && s_obs->rx != NULL) {
@@ -227,7 +236,7 @@ static void receive(uint32_t now)
                 handle_frame(now, &f);
             } else if (st == LINK_RX_DISCARDED) {
                 if (s_obs != NULL && s_obs->rx_error != NULL) {
-                    s_obs->rx_error(now, err, raw, (err == LINK_RX_OVERFLOW) ? 0u : raw_len);
+                    s_obs->rx_error(now, err, raw, (err == LINK_RX_OVERFLOW) ? 0U : raw_len);
                 }
             } else {
                 /* フレームの途中 */
@@ -242,7 +251,7 @@ static void transmit(uint32_t now)
     link_frame_t f;
     for (;;) {
         size_t n = link_tx_peek(&s_link, enc, sizeof enc, &f);
-        if (n == 0u || s_p->uart->write(enc, n) != n) {
+        if (n == 0U || s_p->uart->write(enc, n) != n) {
             break; /* 空き待ち。seq は送り出せたときだけ進む */
         }
         link_tx_commit(&s_link);
@@ -270,6 +279,8 @@ static void task_link(uint32_t now)
     health_checkin(&s_health, HEALTH_LINK);
 }
 
+/* 取り違えの検出：now と ev の取り違えは test_scenarios の test_long_press_toggles_force_full（長押しで強制全開にならない）で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 static void on_button(uint32_t now, button_event_t ev)
 {
     if (ev == BTN_EV_LONG) {

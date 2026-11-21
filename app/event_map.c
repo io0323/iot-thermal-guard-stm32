@@ -1,5 +1,9 @@
 #include "event_map.h"
 
+#include <stdint.h>
+
+#include "safety_fsm.h"
+
 typedef struct {
     fsm_state_t from;
     fsm_state_t to;
@@ -27,6 +31,8 @@ static const event_row_t k_rows[] = {
     {ST_SENSOR_FAULT, ST_CRITICAL, EV_SENSOR_RECOVERED, SEV_INFO},
 };
 
+/* 取り違えの検出：code と severity の取り違えは test_event_map の test_threshold_exceeded（コード3・重大度1）で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 bool event_map(fsm_state_t from, fsm_state_t to, uint8_t *code, uint8_t *severity)
 {
     for (uint32_t i = 0; i < (uint32_t)(sizeof k_rows / sizeof k_rows[0]); i++) {

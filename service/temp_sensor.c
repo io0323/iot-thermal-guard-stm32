@@ -12,9 +12,13 @@
  */
 #include "temp_sensor.h"
 
+#include <stdint.h>
+
 #include "median.h"
 #include "moving_avg.h"
 #include "ntc_table.h"
+#include "ntc_table_data.h"
+#include "ports.h"
 #include "sat.h"
 
 static const adc_port_t *s_adc;
@@ -42,14 +46,14 @@ static void clear_filters(void)
     median5_init(&s_median);
     moving_avg8_init(&s_avg);
     s_has_last = false;
-    s_rate_run = 0u;
-    s_valid_run = 0u;
+    s_rate_run = 0U;
+    s_valid_run = 0U;
 }
 
 static void enter_fault(temp_fault_t cause)
 {
     s_fault = cause;
-    s_oor_run = 0u;
+    s_oor_run = 0U;
     clear_filters();
 }
 
@@ -57,13 +61,13 @@ void temp_init(const adc_port_t *adc, uint32_t now_ms)
 {
     s_adc = adc;
     clear_filters();
-    s_oor_run = 0u;
+    s_oor_run = 0U;
     s_fault = TEMP_FAULT_NONE;
     s_last_sample_ms = now_ms;
     s_stalled = false;
-    s_next_restart_ms = 0u;
-    s_clamped = 0u;
-    s_rejected = 0u;
+    s_next_restart_ms = 0U;
+    s_clamped = 0U;
+    s_rejected = 0U;
 }
 
 /* 生値を温度にする（範囲外は丸める）。短絡・断線の範囲は呼ぶ前に除く。 */
@@ -84,10 +88,10 @@ static int16_t convert(uint16_t raw)
 static bool check_short_open(uint16_t raw)
 {
     if (raw >= TEMP_RAW_SHORT_BELOW && raw <= TEMP_RAW_OPEN_ABOVE) {
-        s_oor_run = 0u;
+        s_oor_run = 0U;
         return false;
     }
-    s_valid_run = 0u;
+    s_valid_run = 0U;
     if (s_oor_run < UINT8_MAX) {
         s_oor_run++;
     }
@@ -104,7 +108,7 @@ static bool rate_check_and_average(int16_t m)
     if (s_has_last && (diff > TEMP_RATE_MAX_C100 || diff < -TEMP_RATE_MAX_C100)) {
         sat_inc_u16(&s_rejected);
         s_rate_run++;
-        s_valid_run = 0u;
+        s_valid_run = 0U;
         if (s_rate_run >= TEMP_FAULT_RUN) {
             enter_fault(TEMP_FAULT_RATE);
             return false;
@@ -112,13 +116,15 @@ static bool rate_check_and_average(int16_t m)
         moving_avg8_push(&s_avg, s_last_accepted);
         return false;
     }
-    s_rate_run = 0u;
+    s_rate_run = 0U;
     s_last_accepted = m;
     s_has_last = true;
     moving_avg8_push(&s_avg, m);
     return true;
 }
 
+/* 取り違えの検出：raw と now_ms の取り違えは test_temp_sensor の test_ready_at_12th_sample（時刻の値が短絡として読まれる）で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 void temp_update(uint16_t raw, uint32_t now_ms)
 {
     s_last_sample_ms = now_ms;
@@ -168,13 +174,19 @@ void temp_get(temp_reading_t *out)
 {
     bool ready = is_ready();
     bool good = ready && s_fault == TEMP_FAULT_NONE;
-    out->temp_c100 = good ? moving_avg8_value(&s_avg) : (int16_t)TEMP_FAULT_C100;
+    if (good) {
+        out->temp_c100 = moving_avg8_value(&s_avg);
+    } else {
+        out->temp_c100 = (int16_t)TEMP_FAULT_C100;
+    }
     out->quality = good ? (uint8_t)TEMP_QUALITY_GOOD : (uint8_t)TEMP_QUALITY_FAULT;
     out->ready = ready;
     out->fault = s_fault;
     out->valid_run = s_valid_run;
 }
 
+/* 取り違えの検出：clamped と rejected の取り違えは test_temp_sensor の test_clamp_boundaries・test_rate_rejects_three_then_fault で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 void temp_counters(uint16_t *clamped, uint16_t *rejected)
 {
     *clamped = s_clamped;

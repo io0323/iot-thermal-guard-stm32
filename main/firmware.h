@@ -15,7 +15,7 @@
 #include "safety_fsm.h"
 
 #define FW_TASK_COUNT DIAG_TASK_COUNT
-#define FW_INIT_MAX_MS 2000u /**< INIT の最長。これまでに ready にならなければ SENSOR_FAULT */
+#define FW_INIT_MAX_MS 2000U /**< INIT の最長。これまでに ready にならなければ SENSOR_FAULT */
 
 /** 診断値（詳細設計書 第7章の表）。中身は service/diag.h。 */
 typedef diag_t fw_diag_t;

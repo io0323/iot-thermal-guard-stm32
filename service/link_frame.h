@@ -24,21 +24,21 @@ typedef enum {
     FRAME_ACK = 0x11
 } frame_type_t;
 
-#define LINK_HEADER_SIZE 4u
-#define LINK_CRC_SIZE 2u
-#define LINK_PAYLOAD_MAX 200u
-#define LINK_CMD_HEAD_SIZE 5u
+#define LINK_HEADER_SIZE 4U
+#define LINK_CRC_SIZE 2U
+#define LINK_PAYLOAD_MAX 200U
+#define LINK_CMD_HEAD_SIZE 5U
 #define LINK_CMD_ARGS_MAX (LINK_PAYLOAD_MAX - LINK_CMD_HEAD_SIZE)
 #define LINK_RAW_MAX (LINK_HEADER_SIZE + LINK_PAYLOAD_MAX + LINK_CRC_SIZE)
 /** 符号化後の最大（区切りの 0x00 を含む）。 */
-#define LINK_ENCODED_MAX (COBS_MAX_ENCODED(LINK_RAW_MAX) + 1u)
+#define LINK_ENCODED_MAX (COBS_MAX_ENCODED(LINK_RAW_MAX) + 1U)
 
 /** 各種別のペイロード長（CMD は最短）。 */
-#define LINK_LEN_TELEMETRY 10u
-#define LINK_LEN_EVENT 10u
-#define LINK_LEN_HEARTBEAT 4u
-#define LINK_LEN_STATE 8u
-#define LINK_LEN_ACK 7u
+#define LINK_LEN_TELEMETRY 10U
+#define LINK_LEN_EVENT 10U
+#define LINK_LEN_HEARTBEAT 4U
+#define LINK_LEN_STATE 8U
+#define LINK_LEN_ACK 7U
 
 /** TELEMETRY 0x01 */
 typedef struct {

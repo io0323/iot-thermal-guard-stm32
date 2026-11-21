@@ -14,9 +14,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define BUTTON_DEBOUNCE_READS 2u  /**< 同じレベルがこの回数続いたら確定 */
-#define BUTTON_LONG_MS 3000u      /**< 長押しの時間 */
-#define BUTTON_QUEUE_LEN 4u       /**< イベントのキューの長さ */
+#define BUTTON_DEBOUNCE_READS 2U  /**< 同じレベルがこの回数続いたら確定 */
+#define BUTTON_LONG_MS 3000U      /**< 長押しの時間 */
+#define BUTTON_QUEUE_LEN 4U       /**< イベントのキューの長さ */
 
 /** ボタンのイベント。 */
 typedef enum { BTN_EV_SHORT, BTN_EV_LONG } button_event_t;

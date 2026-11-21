@@ -1,6 +1,9 @@
 #include "boot_id.h"
 
+#include <stdint.h>
+
 #include "crc32.h"
+#include "ports.h"
 
 uint32_t boot_id_make(const entropy_port_t *e)
 {
@@ -10,5 +13,5 @@ uint32_t boot_id_make(const entropy_port_t *e)
         n = sizeof buf;
     }
     uint32_t id = crc32_ieee(buf, n);
-    return (id == 0u) ? 1u : id;
+    return (id == 0U) ? 1U : id;
 }

@@ -1,9 +1,11 @@
 #include "median.h"
 
+#include <stdint.h>
+
 void median5_init(median5_t *m)
 {
-    m->count = 0u;
-    m->next = 0u;
+    m->count = 0U;
+    m->next = 0U;
     for (uint8_t i = 0; i < MEDIAN_N; i++) {
         m->buf[i] = 0;
     }
@@ -12,7 +14,7 @@ void median5_init(median5_t *m)
 void median5_push(median5_t *m, int16_t v)
 {
     m->buf[m->next] = v;
-    m->next = (uint8_t)((m->next + 1u) % MEDIAN_N);
+    m->next = (uint8_t)((m->next + 1U) % MEDIAN_N);
     if (m->count < MEDIAN_N) {
         m->count++;
     }
@@ -25,7 +27,7 @@ bool median5_full(const median5_t *m)
 
 int16_t median5_value(const median5_t *m)
 {
-    if (m->count == 0u) {
+    if (m->count == 0U) {
         return 0;
     }
     int16_t s[MEDIAN_N];
@@ -37,11 +39,11 @@ int16_t median5_value(const median5_t *m)
     for (uint8_t i = 1; i < n; i++) {
         int16_t x = s[i];
         uint8_t j = i;
-        while (j > 0u && s[j - 1u] > x) {
-            s[j] = s[j - 1u];
+        while (j > 0U && s[j - 1U] > x) {
+            s[j] = s[j - 1U];
             j--;
         }
         s[j] = x;
     }
-    return s[(uint8_t)((n - 1u) / 2u)];
+    return s[(uint8_t)((n - 1U) / 2U)];
 }
