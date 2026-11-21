@@ -33,6 +33,11 @@ jobs:
           --target-cmd "./build/host/mcu_c_01 --log contract-log.jsonl {uart}"
           --junit contract.xml
 
+      - name: 再起動の結合テスト（pty 越し、pytest）
+        run: >-
+          uv run --with "iotspec @ git+https://github.com/io0323/iot-common-spec@v0.2.1" --with pytest
+          pytest tests/host_integration
+
       - name: 契約テストの結果とログ
         if: always()
         uses: actions/upload-artifact@v4
