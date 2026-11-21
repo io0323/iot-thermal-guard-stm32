@@ -29,7 +29,7 @@ void cmd_init(cmd_handler_t *h)
 static const cmd_cache_entry_t *cache_find(const cmd_handler_t *h, uint16_t cmd_ref)
 {
     for (uint8_t i = 0; i < CMD_CACHE_SIZE; i++) {
-        if (h->cache[i].valid && h->cache[i].cmd_ref == cmd_ref) {
+        if (h->cache[i].valid && (h->cache[i].cmd_ref == cmd_ref)) {
             return &h->cache[i];
         }
     }
@@ -64,7 +64,7 @@ static void set_fan_override(cmd_handler_t *h, const link_cmd_t *c, uint32_t now
         return;
     }
     uint16_t duty = get_u16le(&c->args[0]);
-    if (duty > DUTY_FULL_PM || c->ttl_s < CMD_TTL_MIN_S || c->ttl_s > CMD_TTL_MAX_S) {
+    if ((duty > DUTY_FULL_PM) || (c->ttl_s < CMD_TTL_MIN_S) || (c->ttl_s > CMD_TTL_MAX_S)) {
         reject(&out->ack, REASON_INVALID_ARG);
         return;
     }
@@ -79,10 +79,10 @@ static void set_fan_override(cmd_handler_t *h, const link_cmd_t *c, uint32_t now
 
 static bool threshold_valid(int16_t warn, int16_t crit, int16_t hyst)
 {
-    if (warn < CMD_WARN_MIN_C100 || warn >= crit || crit > CMD_CRIT_MAX_C100) {
+    if ((warn < CMD_WARN_MIN_C100) || (warn >= crit) || (crit > CMD_CRIT_MAX_C100)) {
         return false;
     }
-    if (hyst < CMD_HYST_MIN_C100 || hyst > CMD_HYST_MAX_C100) {
+    if ((hyst < CMD_HYST_MIN_C100) || (hyst > CMD_HYST_MAX_C100)) {
         return false;
     }
     return ((int32_t)crit - (int32_t)warn) >= (int32_t)hyst;
@@ -94,7 +94,7 @@ static void set_threshold(cmd_handler_t *h, const link_cmd_t *c, const cmd_env_t
         reject(&out->ack, REASON_INVALID_ARG);
         return;
     }
-    if (env->state == ST_CRITICAL || env->state == ST_SENSOR_FAULT) {
+    if ((env->state == ST_CRITICAL) || (env->state == ST_SENSOR_FAULT)) {
         reject(&out->ack, REASON_UNSAFE);
         return;
     }
@@ -167,7 +167,7 @@ void cmd_handle(cmd_handler_t *h, const link_cmd_t *cmd, uint32_t now_ms, const 
         out->ack.reason = hit->reason;
         out->ack.limited = hit->limited;
         out->ack.applied = hit->applied;
-        out->send_state = (hit->op == (uint8_t)OP_GET_STATUS && hit->status == (uint8_t)ACK_DONE);
+        out->send_state = ((hit->op == (uint8_t)OP_GET_STATUS) && (hit->status == (uint8_t)ACK_DONE));
         return;
     }
     /* ③ 検証と実行 → ④ キャッシュ */

@@ -23,19 +23,19 @@
 #include "ports.h"
 #include "safety_fsm.h"
 
-#define ALARM_LED_COUNT 3U
+#define ALARM_LED_COUNT 3U /**< LED の数（緑・黄・赤） */
 
 /** 出力。led は led_t（LED_GREEN・LED_YELLOW・LED_RED）で引く。 */
 typedef struct {
-    bool led[ALARM_LED_COUNT];
-    bool buzzer;
+    bool led[ALARM_LED_COUNT]; /**< 各 LED の点灯（led_t で引く） */
+    bool buzzer; /**< ブザーを鳴らすか */
 } alarm_out_t;
 
 /** 警報の状態。 */
 typedef struct {
-    fsm_state_t state;
-    uint32_t entered_ms;
-    bool silenced;
+    fsm_state_t state; /**< いまの状態 */
+    uint32_t entered_ms; /**< 状態に入った時刻（点滅の位相の起点） */
+    bool silenced; /**< 消音しているか */
 } alarm_t;
 
 /**

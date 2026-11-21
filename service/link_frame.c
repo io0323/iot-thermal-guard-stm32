@@ -147,7 +147,7 @@ static bool known_type(uint8_t type, size_t *fixed_len)
         {(uint8_t)FRAME_ACK, LINK_LEN_ACK},
     };
     bool found = false;
-    for (size_t i = 0U; i < (sizeof k_len / sizeof k_len[0]); i++) {
+    for (size_t i = 0U; i < (sizeof(k_len) / sizeof(k_len[0])); i++) {
         if (k_len[i].type == type) {
             *fixed_len = k_len[i].len;
             found = true;
@@ -218,7 +218,7 @@ link_rx_error_t link_frame_decode(const uint8_t *enc, size_t len, link_frame_t *
         return LINK_RX_CRC_MISMATCH;
     }
     size_t payload_len = body - LINK_HEADER_SIZE;
-    if ((size_t)raw[3] != payload_len || payload_len > LINK_PAYLOAD_MAX) {
+    if (((size_t)raw[3] != payload_len) || (payload_len > LINK_PAYLOAD_MAX)) {
         return LINK_RX_LENGTH_MISMATCH;
     }
     size_t fixed = 0U;
@@ -231,6 +231,8 @@ link_rx_error_t link_frame_decode(const uint8_t *enc, size_t len, link_frame_t *
         }
     } else if (payload_len != fixed) {
         return LINK_RX_LENGTH_MISMATCH;
+    } else {
+        /* 固定長が合っている */
     }
     out->type = raw[0];
     out->seq = get_u16le(&raw[1]);

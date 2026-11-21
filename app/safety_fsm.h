@@ -40,24 +40,27 @@ typedef enum { SEV_INFO = 0, SEV_WARNING = 1, SEV_CRITICAL = 2 } severity_t;
 
 /** fsm_step の入力。 */
 typedef struct {
-    temp_reading_t temp;
+    temp_reading_t temp; /**< 温度の読み（temp_get の結果） */
     bool init_done; /**< INIT を終える時点（ready になった、または起動から2000ms） */
     bool ack;       /**< ボタンの承認（1回限り。P2 では常に false） */
-    int16_t warn_c100, crit_c100, hyst_c100;
+    int16_t warn_c100; /**< warn しきい値（0.01℃） */
+    int16_t crit_c100; /**< crit しきい値（0.01℃） */
+    int16_t hyst_c100; /**< ヒステリシス（0.01℃） */
 } fsm_input_t;
 
 /** fsm_step の出力。 */
 typedef struct {
-    fsm_state_t from, to;
-    bool changed;
-    uint8_t event_code;
-    uint8_t severity;
+    fsm_state_t from; /**< 遷移の前の状態 */
+    fsm_state_t to; /**< 遷移の後の状態（当たる行がなければ from と同じ） */
+    bool changed; /**< 状態が変わったか */
+    uint8_t event_code; /**< 送る EVENT の code（変化がなければ EV_NONE） */
+    uint8_t severity; /**< 送る EVENT の severity */
     uint8_t row; /**< 当たった行（1〜9。テストと記録用） */
 } fsm_output_t;
 
 /** 状態遷移の文脈。 */
 typedef struct {
-    fsm_state_t state;
+    fsm_state_t state; /**< いまの状態 */
     uint8_t warn_run;  /**< t ≧ warn の連続回数 */
     uint8_t crit_run;  /**< t ≧ crit の連続回数 */
     uint8_t clear_run; /**< t < warn − hyst の連続回数 */

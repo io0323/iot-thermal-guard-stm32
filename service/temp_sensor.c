@@ -24,7 +24,6 @@
 static const adc_port_t *s_adc;
 static median5_t s_median;
 static moving_avg8_t s_avg;
-static int16_t s_last_accepted;
 static bool s_has_last;
 static uint8_t s_oor_run;  /* 短絡・断線の生値の連続回数 */
 static uint8_t s_rate_run; /* 変化率の棄却の連続回数 */
@@ -87,7 +86,7 @@ static int16_t convert(uint16_t raw)
 /* 短絡・断線なら true（そのサンプルは捨てる） */
 static bool check_short_open(uint16_t raw)
 {
-    if (raw >= TEMP_RAW_SHORT_BELOW && raw <= TEMP_RAW_OPEN_ABOVE) {
+    if ((raw >= TEMP_RAW_SHORT_BELOW) && (raw <= TEMP_RAW_OPEN_ABOVE)) {
         s_oor_run = 0U;
         return false;
     }
@@ -104,8 +103,10 @@ static bool check_short_open(uint16_t raw)
 /* 変化率の検査。採用したら true。棄却したら前回採用した値を移動平均に入れる。 */
 static bool rate_check_and_average(int16_t m)
 {
+    static int16_t s_last_accepted;
+
     int32_t diff = (int32_t)m - (int32_t)s_last_accepted;
-    if (s_has_last && (diff > TEMP_RATE_MAX_C100 || diff < -TEMP_RATE_MAX_C100)) {
+    if (s_has_last && ((diff > TEMP_RATE_MAX_C100) || (diff < -TEMP_RATE_MAX_C100))) {
         sat_inc_u16(&s_rejected);
         s_rate_run++;
         s_valid_run = 0U;
@@ -144,7 +145,7 @@ void temp_update(uint16_t raw, uint32_t now_ms)
         s_fault = TEMP_FAULT_NONE; /* 原因が消え、改めて ready になった */
         return;
     }
-    if (accepted && s_valid_run < TEMP_VALID_RUN_MAX) {
+    if (accepted && (s_valid_run < TEMP_VALID_RUN_MAX)) {
         s_valid_run++;
     }
 }
@@ -154,7 +155,7 @@ void temp_tick(uint32_t now_ms)
     if (!s_stalled) {
         if ((int32_t)(now_ms - (s_last_sample_ms + TEMP_ADC_TIMEOUT_MS)) >= 0) {
             s_stalled = true;
-            if (s_fault == TEMP_FAULT_NONE || is_ready()) {
+            if ((s_fault == TEMP_FAULT_NONE) || is_ready()) {
                 enter_fault(TEMP_FAULT_ADC_TIMEOUT);
             } else {
                 clear_filters(); /* すでに故障中なら原因はそのまま */
@@ -173,7 +174,7 @@ void temp_tick(uint32_t now_ms)
 void temp_get(temp_reading_t *out)
 {
     bool ready = is_ready();
-    bool good = ready && s_fault == TEMP_FAULT_NONE;
+    bool good = ready && (s_fault == TEMP_FAULT_NONE);
     if (good) {
         out->temp_c100 = moving_avg8_value(&s_avg);
     } else {

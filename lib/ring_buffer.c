@@ -5,7 +5,7 @@
 
 bool rb_init(ring_buffer_t *rb, uint8_t *storage, uint32_t capacity)
 {
-    if (storage == NULL || capacity == 0U || capacity > 0x80000000U || (capacity & (capacity - 1U)) != 0U) {
+    if ((storage == NULL) || (capacity == 0U) || (capacity > 0x80000000U) || ((capacity & (capacity - 1U)) != 0U)) {
         return false;
     }
     rb->buf = storage;

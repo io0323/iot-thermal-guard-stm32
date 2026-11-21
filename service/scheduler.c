@@ -48,7 +48,7 @@ void sched_run(sched_t *s)
     uint32_t now = s->tick->now_ms();
     for (size_t i = 0; i < s->count; i++) {
         sched_task_t *t = &s->tasks[i];
-        if (t->enabled && t->period_ms != 0U && (int32_t)(now - t->next_ms) >= 0) {
+        if (t->enabled && (t->period_ms != 0U) && ((int32_t)(now - t->next_ms) >= 0)) {
             run_task(s, t, now);
         }
     }

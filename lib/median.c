@@ -39,7 +39,7 @@ int16_t median5_value(const median5_t *m)
     for (uint8_t i = 1; i < n; i++) {
         int16_t x = s[i];
         uint8_t j = i;
-        while (j > 0U && s[j - 1U] > x) {
+        while ((j > 0U) && (s[j - 1U] > x)) {
             s[j] = s[j - 1U];
             j--;
         }

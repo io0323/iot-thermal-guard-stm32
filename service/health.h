@@ -21,8 +21,8 @@ typedef enum { HEALTH_SENSE, HEALTH_CONTROL, HEALTH_LINK, HEALTH_UI, HEALTH_TASK
 
 /** ヘルスの状態。 */
 typedef struct {
-    uint8_t bits;
-    bool has_report_ref;
+    uint8_t bits; /**< 生存報告のビット（health_task_t の順） */
+    bool has_report_ref; /**< report の期限の基準があるか */
     uint32_t report_ref_ms; /**< report の最後の実行、まだなければ INIT を抜けた時刻 */
 } health_t;
 

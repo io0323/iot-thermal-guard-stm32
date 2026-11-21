@@ -8,13 +8,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MEDIAN_N 5U
+#define MEDIAN_N 5U /**< メディアンの窓の大きさ */
 
 /** メディアンの窓。 */
 typedef struct {
-    int16_t buf[MEDIAN_N];
-    uint8_t count;
-    uint8_t next;
+    int16_t buf[MEDIAN_N]; /**< 直近の値（リング） */
+    uint8_t count; /**< 入っている数（最大 MEDIAN_N） */
+    uint8_t next; /**< 次に書く位置 */
 } median5_t;
 
 /**

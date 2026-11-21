@@ -19,7 +19,7 @@ static bool first_half(uint32_t elapsed, uint32_t period)
 
 static bool silenceable(fsm_state_t s)
 {
-    return s == ST_CRITICAL || s == ST_SENSOR_FAULT;
+    return (s == ST_CRITICAL) || (s == ST_SENSOR_FAULT);
 }
 
 void alarm_init(alarm_t *a, uint32_t now)
@@ -56,8 +56,8 @@ void alarm_silence(alarm_t *a)
 static void init_pattern(uint32_t el, alarm_out_t *out)
 {
     out->led[LED_RED] = el < INIT_STEP_MS;
-    out->led[LED_YELLOW] = el >= INIT_STEP_MS && el < (2U * INIT_STEP_MS);
-    out->led[LED_GREEN] = el >= (2U * INIT_STEP_MS) && el < (3U * INIT_STEP_MS);
+    out->led[LED_YELLOW] = (el >= INIT_STEP_MS) && (el < (2U * INIT_STEP_MS));
+    out->led[LED_GREEN] = (el >= (2U * INIT_STEP_MS)) && (el < (3U * INIT_STEP_MS));
     out->buzzer = el < INIT_STEP_MS;
 }
 

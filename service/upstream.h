@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 
-#define UPSTREAM_LOST_MS 10000U
+#define UPSTREAM_LOST_MS 10000U /**< HEARTBEAT がこの時間来なければ上位断 */
 
 /** 上位の状態。 */
 typedef enum { UPSTREAM_UNKNOWN, UPSTREAM_ALIVE, UPSTREAM_LOST } upstream_state_t;
@@ -24,7 +24,7 @@ typedef enum { UPSTREAM_EV_NONE, UPSTREAM_EV_LOST, UPSTREAM_EV_RESTORED } upstre
 
 /** 上位監視の状態。 */
 typedef struct {
-    upstream_state_t state;
+    upstream_state_t state; /**< いまの状態 */
     uint32_t last_ms; /**< 最後の受信（未受信なら起動時刻） */
 } upstream_t;
 

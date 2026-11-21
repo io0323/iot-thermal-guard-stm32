@@ -69,7 +69,7 @@ link_rx_status_t link_rx_byte(link_t *l, uint8_t b, link_frame_t *out, link_rx_e
     size_t len = l->rx_len;
     l->rx_len = 0U;
     link_rx_error_t e = link_frame_decode(l->rx_buf, len, out);
-    if (e == LINK_RX_OK && out->type != (uint8_t)FRAME_HEARTBEAT && out->type != (uint8_t)FRAME_CMD) {
+    if ((e == LINK_RX_OK) && (out->type != (uint8_t)FRAME_HEARTBEAT) && (out->type != (uint8_t)FRAME_CMD)) {
         e = LINK_RX_UNEXPECTED_TYPE;
     }
     /* link_rx_last_raw のために長さを残す（次のバイトで上書きされる） */
@@ -108,7 +108,7 @@ static int seq_index(uint8_t type)
 
 static bool is_periodic(uint8_t type)
 {
-    return type == (uint8_t)FRAME_TELEMETRY || type == (uint8_t)FRAME_HEARTBEAT;
+    return (type == (uint8_t)FRAME_TELEMETRY) || (type == (uint8_t)FRAME_HEARTBEAT);
 }
 
 static uint8_t slot_at(const link_t *l, uint8_t k)
@@ -145,7 +145,7 @@ bool link_send(link_t *l, const link_frame_t *f)
             return false;
         }
         uint8_t k = 0U;
-        while (k < l->tx_count && !is_periodic(l->txq[slot_at(l, k)].type)) {
+        while ((k < l->tx_count) && (!is_periodic(l->txq[slot_at(l, k)].type))) {
             k++;
         }
         sat_inc_u16(&l->cnt.tx_dropped); /* 押し出した1件、または入れられなかった1件 */
@@ -168,7 +168,7 @@ size_t link_tx_peek(const link_t *l, uint8_t *out, size_t cap, link_frame_t *fra
     int idx = seq_index(s->type);
     uint16_t seq = (idx >= 0) ? l->seq[idx] : 0U;
     size_t n = link_encode_raw(s->type, seq, s->payload, s->len, out, cap);
-    if (n != 0U && frame != NULL) {
+    if ((n != 0U) && (frame != NULL)) {
         (void)link_frame_decode(out, n - 1U, frame); /* 送るバイト列そのものから戻す */
     }
     return n;

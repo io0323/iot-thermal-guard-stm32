@@ -19,25 +19,33 @@
 
 /** 診断値。 */
 typedef struct {
-    uint8_t reset_reason;
-    uint16_t reset_count;
-    uint16_t rx_cobs_errors, rx_len_errors, rx_crc_errors, rx_unexpected, rx_overflow;
-    uint16_t cmd_dropped_init, cmd_duplicates;
-    uint16_t tx_dropped;
-    uint16_t temp_clamped, temp_rejected;
-    uint32_t max_loop_cycles;
+    uint8_t reset_reason; /**< リセット要因（reset_reason_t の値） */
+    uint16_t reset_count; /**< リセット回数 */
+    uint16_t rx_cobs_errors; /**< COBS の復号で捨てた件数 */
+    uint16_t rx_len_errors; /**< 長さが合わずに捨てた件数 */
+    uint16_t rx_crc_errors; /**< CRC が合わずに捨てた件数 */
+    uint16_t rx_unexpected; /**< 受け付けない種別で捨てた件数 */
+    uint16_t rx_overflow; /**< 受信バッファがあふれて捨てた件数 */
+    uint16_t cmd_dropped_init; /**< INIT 中に捨てた CMD の件数 */
+    uint16_t cmd_duplicates; /**< 重複として前回の ACK を返した件数 */
+    uint16_t tx_dropped; /**< 送信キューで捨てた件数 */
+    uint16_t temp_clamped; /**< 範囲外で丸めた件数 */
+    uint16_t temp_rejected; /**< 変化率で棄却した件数 */
+    uint32_t max_loop_cycles; /**< ループ1周の実行時間の最大（cycles） */
     uint32_t max_task_cycles[DIAG_TASK_COUNT]; /**< sense, control, link, ui, report, health の順 */
-    uint16_t overruns;
+    uint16_t overruns; /**< オーバーランの件数 */
 } diag_t;
 
 /** 集める元。 */
 typedef struct {
-    reset_reason_t reset_reason;
-    uint16_t reset_count;
-    const link_counters_t *link;
+    reset_reason_t reset_reason; /**< リセット要因 */
+    uint16_t reset_count; /**< リセット回数 */
+    const link_counters_t *link; /**< link の受信・送信のカウンタ */
     const sched_t *sched; /**< tasks は DIAG_TASK_COUNT 行より少なくてもよい（足りない分は 0） */
-    uint16_t cmd_dropped_init, cmd_duplicates;
-    uint16_t temp_clamped, temp_rejected;
+    uint16_t cmd_dropped_init; /**< INIT 中に捨てた CMD の件数 */
+    uint16_t cmd_duplicates; /**< 重複として前回の ACK を返した件数 */
+    uint16_t temp_clamped; /**< 範囲外で丸めた件数 */
+    uint16_t temp_rejected; /**< 変化率で棄却した件数 */
 } diag_sources_t;
 
 /**

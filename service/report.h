@@ -15,24 +15,24 @@
 
 #include "link_frame.h"
 
-#define REPORT_PERIOD_MS 1000U
-#define REPORT_STATE_PERIOD_MS 60000U
-#define REPORT_MAX_FRAMES 3U
+#define REPORT_PERIOD_MS 1000U /**< TELEMETRY・HEARTBEAT の周期 */
+#define REPORT_STATE_PERIOD_MS 60000U /**< STATE の周期 */
+#define REPORT_MAX_FRAMES 3U /**< 1回の report_tick で作る最大のフレーム数 */
 
 /** 送る値の写し。 */
 typedef struct {
-    uint32_t uptime_ms;
-    int16_t temp_c100;
-    uint8_t quality;
-    uint8_t state;
+    uint32_t uptime_ms; /**< 起動からのミリ秒 */
+    int16_t temp_c100; /**< 温度（0.01℃） */
+    uint8_t quality; /**< 品質 */
+    uint8_t state; /**< 状態 */
     uint16_t fan_pm; /**< 最後に PWM へ書いた duty */
-    uint16_t fw_version;
-    uint32_t boot_id;
+    uint16_t fw_version; /**< ファームウェアの版 */
+    uint32_t boot_id; /**< boot_id */
 } report_snapshot_t;
 
 /** 周期送信の状態。 */
 typedef struct {
-    bool started;
+    bool started; /**< INIT を抜けて周期送信を始めたか */
     uint32_t last_state_ms; /**< 周期の STATE を最後に送った時刻 */
 } report_t;
 

@@ -61,14 +61,14 @@ bool cobs_decode(const uint8_t *in, size_t len, uint8_t *out, size_t cap, size_t
             return false;
         }
         for (size_t k = 0; k < n; k++) {
-            if (in[r] == 0U || w >= cap) {
+            if ((in[r] == 0U) || (w >= cap)) {
                 return false;
             }
             out[w] = in[r];
             w++;
             r++;
         }
-        if (code != 0xFFU && r < len) {
+        if ((code != 0xFFU) && (r < len)) {
             if (w >= cap) {
                 return false;
             }
