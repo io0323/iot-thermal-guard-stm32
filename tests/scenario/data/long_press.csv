@@ -1,0 +1,8 @@
+t_ms,temp_c,event
+# 長押し：NORMAL で3.5秒押すと3秒の時点で強制全開（ファン1000）、もう一度押すと元に戻る
+0,25,
+5000,25,button_down
+8500,25,button_up
+12000,25,button_down
+15500,25,button_up
+20000,25,

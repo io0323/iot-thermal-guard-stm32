@@ -5,8 +5,10 @@
  * 形式：`t_ms,temp_c,event`。温度は次の行まで線形につなぎ、最後の行のあとは最後の温度のまま。
  * - 1行目が `t_ms` で始まればヘッダとして読み飛ばす。`#` で始まる行と空行は読み飛ばす。改行は LF・CRLF のどちらでもよい
  * - temp_c は全行に必須。t_ms は増える順（同じ値も不可）
- * - event は空か次のどれか。P2 で扱うのは sensor_open・sensor_short・sensor_ok・adc_stall・adc_resume。
- *   button_down・button_up・hang は P3 で扱うので、今は「未対応」として読み込みを失敗させる
+ * - event は空か、sensor_open・sensor_short・sensor_ok・adc_stall・adc_resume・button_down・button_up・hang
+ *   （P2 の間は button・hang を未対応にしていた。open-questions #33）
+ * - hang は「ファームウェアのループを止める」。止めるのは再生する側（ホスト版の main、sim_harness）で、
+ *   ここでは hang に達したかだけを持つ
  */
 #ifndef BSP_HOST_SCENARIO_H
 #define BSP_HOST_SCENARIO_H
@@ -24,7 +26,10 @@ typedef enum {
     SC_EV_SENSOR_SHORT,
     SC_EV_SENSOR_OK,
     SC_EV_ADC_STALL,
-    SC_EV_ADC_RESUME
+    SC_EV_ADC_RESUME,
+    SC_EV_BUTTON_DOWN,
+    SC_EV_BUTTON_UP,
+    SC_EV_HANG
 } sc_event_t;
 
 /** 1行。 */
@@ -47,6 +52,8 @@ typedef struct {
     bool open;       /**< sensor_open：生値 4095 */
     bool shorted;    /**< sensor_short：生値 0 */
     bool stalled;    /**< adc_stall：値を出さない */
+    bool button;     /**< button_down〜button_up：押している */
+    bool hang;       /**< hang に達した */
 } scenario_player_t;
 
 /**

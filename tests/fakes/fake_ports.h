@@ -23,6 +23,10 @@ typedef struct {
     uint32_t adc_restarts; /**< adc->restart() を呼んだ回数 */
     uint16_t pwm_pm;
     uint32_t pwm_writes;
+    bool led[3];       /**< led_t で引く。最後に書いた値 */
+    bool buzzer;       /**< 最後に書いた値 */
+    bool button;       /**< button_pressed() が返す値 */
+    uint32_t wdt_refreshes; /**< wdt->refresh() を呼んだ回数 */
     uint8_t rx[FAKE_UART_CAP];
     size_t rx_len, rx_pos;
     uint8_t tx[FAKE_UART_CAP];

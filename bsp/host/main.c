@@ -6,6 +6,10 @@
  * UART_PATH がなければ環境変数 IOTSPEC_UART_PATH。どちらもなければ終了コード 2。
  * SIGTERM・SIGINT、または相手が閉じた（read が 0／EIO）ら、診断値をログに書いて終了コード 0。
  * SIGUSR1 で診断値をログに書く。--scenario は --temp より優先し、不正な CSV は終了コード 2。
+ *
+ * 疑似ウォッチドッグ（第7章）：最後のリフレッシュから500ms たったら、診断値をログに書いて自分自身を execv() で
+ * 起動し直す（bsp_host_watchdog_reset）。シナリオの hang に達したらファームウェアのループ（firmware_poll）を止めるが、
+ * UART の入出力と疑似ウォッチドッグの監視は続ける。起動し直したプロセスはログに追記する（open-questions #38）。
  */
 #include <signal.h>
 #include <stdio.h>
@@ -108,7 +112,8 @@ int main(int argc, char **argv)
             return 2;
         }
     }
-    if (!host_log_open(opt.log_path)) {
+    bool restarted = getenv("MCU_C_01_RESET_COUNT") != NULL;
+    if (!host_log_open(opt.log_path, restarted)) {
         fprintf(stderr, "mcu_c_01: ログを開けない: %s\n", opt.log_path);
         return 2;
     }
@@ -138,7 +143,18 @@ int main(int argc, char **argv)
             code = 1;
             break;
         }
-        firmware_poll();
+        if (!bsp_host_scenario_hang()) {
+            firmware_poll(); /* hang に達したらループを止める（無限ループの模擬） */
+        }
+        if (bsp_host_wdt_expired()) {
+            fw_diag_t d;
+            firmware_diag(&d);
+            host_log_diag(firmware_now_ms(), &d);
+            host_log_close();
+            bsp_host_watchdog_reset(argv);
+            perror("mcu_c_01: 疑似ウォッチドッグの execv"); /* 戻ってきたら失敗 */
+            return 1;
+        }
         if (s_dump != 0) {
             s_dump = 0;
             fw_diag_t d;

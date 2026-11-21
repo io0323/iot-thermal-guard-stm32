@@ -33,7 +33,7 @@ static char *trim(char *s)
     return s;
 }
 
-/* 戻り値：0 成功、1 知らない、2 P3 で扱う event */
+/* 戻り値：0 成功、1 知らない */
 static int parse_event(const char *s, sc_event_t *ev)
 {
     static const struct {
@@ -46,15 +46,15 @@ static int parse_event(const char *s, sc_event_t *ev)
         {"sensor_ok", SC_EV_SENSOR_OK},
         {"adc_stall", SC_EV_ADC_STALL},
         {"adc_resume", SC_EV_ADC_RESUME},
+        {"button_down", SC_EV_BUTTON_DOWN},
+        {"button_up", SC_EV_BUTTON_UP},
+        {"hang", SC_EV_HANG},
     };
     for (size_t i = 0; i < sizeof map / sizeof map[0]; i++) {
         if (strcmp(s, map[i].name) == 0) {
             *ev = map[i].ev;
             return 0;
         }
-    }
-    if (strcmp(s, "button_down") == 0 || strcmp(s, "button_up") == 0 || strcmp(s, "hang") == 0) {
-        return 2;
     }
     return 1;
 }
@@ -98,10 +98,6 @@ static bool parse_row(char *line, sc_row_t *row, size_t lineno, char *err, size_
         return false;
     }
     int r = parse_event(e_s, &row->ev);
-    if (r == 2) {
-        set_err(err, errlen, "%zu 行目：event %s は未対応（P3）", lineno, e_s);
-        return false;
-    }
     if (r != 0) {
         set_err(err, errlen, "%zu 行目：知らない event: %s", lineno, e_s);
         return false;
@@ -201,6 +197,8 @@ void scenario_player_init(scenario_player_t *p, const scenario_t *sc)
     p->open = false;
     p->shorted = false;
     p->stalled = false;
+    p->button = false;
+    p->hang = false;
 }
 
 void scenario_player_advance(scenario_player_t *p, uint32_t t_ms)
@@ -224,6 +222,15 @@ void scenario_player_advance(scenario_player_t *p, uint32_t t_ms)
             break;
         case SC_EV_ADC_RESUME:
             p->stalled = false;
+            break;
+        case SC_EV_BUTTON_DOWN:
+            p->button = true;
+            break;
+        case SC_EV_BUTTON_UP:
+            p->button = false;
+            break;
+        case SC_EV_HANG:
+            p->hang = true;
             break;
         case SC_EV_NONE:
         default:

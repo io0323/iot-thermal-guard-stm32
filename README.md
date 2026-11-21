@@ -10,7 +10,7 @@
 ## 必要なもの
 
 - CMake 3.25 以上、Ninja、C11 のコンパイラ（clang または gcc）、Python 3
-- 契約テストを動かすには [uv](https://docs.astral.sh/uv/)
+- 契約テストと再起動の結合テストを動かすには [uv](https://docs.astral.sh/uv/)（結合テストは Python 3.12 を使う。`.python-version` で指定しているので uv が用意する）
 
 ## ビルドとテスト
 
@@ -44,6 +44,16 @@ iotspec-contract --role mcu-c-01 --target-cmd "./build/host/mcu_c_01 --log contr
 7つのチェック（boot_order、ack、duplicate_cmd_ref、upstream_lost_restored、frame_encoding、seq_per_type、converted_schema）を行います。
 10秒の途絶を含むので、1回におよそ15秒かかります。MQTT ブローカーは要りません。
 
+## 再起動の結合テスト（pytest）
+
+```sh
+uv run --with "iotspec @ git+https://github.com/io0323/iot-common-spec@v0.2.1" --with pytest pytest tests/host_integration
+```
+
+pty の組を作ってホスト版を `--scenario tests/scenario/data/hang_reboot.csv` で動かし、iotspec の `FrameReader`（`decode_frame`）でフレームを読みます。
+3000ms の `hang` のあと、疑似ウォッチドッグで起動し直して別の boot_id の STATE → BOOT が来ること（hang から 400〜2600ms）、
+再起動後の seq と uptime_ms が 0 から始まること、ログの boot の行が `watchdog`・1 になることを確かめます。実測した時間は出力に表示されます。
+
 ## ホスト版の使い方
 
 ```text
@@ -57,17 +67,29 @@ mcu_c_01 [--temp <℃>] [--scenario <file.csv>] [--log <file.jsonl>] [UART_PATH]
 | `--scenario` | なし | シナリオ CSV を実時間で再生する。`--temp` より優先。不正な CSV は終了コード 2 |
 | `--log` | 標準エラー | JSON Lines のログ |
 
-- 環境変数 `MCU_C_01_RESET_REASON` でリセット要因を指定できます（`power_on`・`pin`・`watchdog`・`software`・`brownout`・`low_power`・`unknown`。既定は `power_on`）
 - SIGTERM・SIGINT、または相手が UART を閉じたら、診断値をログに書いて終了コード 0 で終わります。SIGUSR1 で診断値を書き出します
+- ボタンはシナリオの `button_down`〜`button_up` で押します。LED とブザーはログ（`led`・`buzzer`）に出します
+
+### 疑似ウォッチドッグと再起動
+
+ファームウェアは100ms ごとに、sense・control・link・ui の生存報告と report の期限（最後の実行から1500ms 以内）を確かめてからウォッチドッグをリフレッシュします。
+最後のリフレッシュから500ms たつと、ホスト版は診断値をログに書き、次の環境変数を付けて同じ引数で自分自身を `execv()` します。
+UART とログのファイルは `O_CLOEXEC` で開いていて、起動し直したプロセスが開き直します（ログは追記）。
+
+| 環境変数 | 内容 |
+| --- | --- |
+| `MCU_C_01_RESET_REASON` | リセット要因（`power_on`・`pin`・`watchdog`・`software`・`brownout`・`low_power`・`unknown`）。なければ `power_on` |
+| `MCU_C_01_RESET_COUNT` | リセット回数（0xFFFF で止まる）。なければ 0。あればログを追記で開く |
+| `MCU_C_01_SCENARIO_ELAPSED_MS` | シナリオの時刻の引き継ぎ。再起動してもシナリオは続き、`hang` は1回だけ起きる。uptime_ms は 0 から数え直す |
 
 ### シナリオ CSV
 
 `t_ms,temp_c,event` の3列です（例は [tests/scenario/data/](tests/scenario/data/)）。仮想時間のテスト（sim_harness）とホスト版で同じ形式を使います。
 
-- 温度は次の行まで線形につなぎ、最後の行のあとは最後の温度のまま。t_ms は起動からのミリ秒で、増える順
+- 温度は次の行まで線形につなぎ、最後の行のあとは最後の温度のまま。t_ms はシナリオを始めてからのミリ秒で、増える順
 - 1行目が `t_ms` で始まればヘッダとして読み飛ばす。`#` の行と空行は読み飛ばす。改行は LF・CRLF のどちらでもよい
 - temp_c は全行に必須。event は空か、`sensor_open`（生値 4095）・`sensor_short`（生値 0）・`sensor_ok`（温度からの値に戻す）・`adc_stall`（値を出さない）・`adc_resume`
-- `button_down`・`button_up`・`hang` は P3 で扱うので、今は未対応として読み込みを失敗させる
+- `button_down`・`button_up`（ボタンのレベル。短押しは3000ms 未満、長押しは3000ms 押し続ける）、`hang`（ファームウェアのループを止める。疑似ウォッチドッグの監視は続く）
 
 ### ログのキー（JSON Lines）
 
@@ -78,6 +100,8 @@ mcu_c_01 [--temp <℃>] [--scenario <file.csv>] [--log <file.jsonl>] [UART_PATH]
 | `boot` | `boot_id`（16進8桁の文字列）、`reset_reason`、`reset_count` |
 | `state` | `from`、`to`（状態名） |
 | `fan` | `pm`（PWM に書いた duty、‰） |
+| `led` | `led`（`green`・`yellow`・`red`）、`on` |
+| `buzzer` | `on` |
 | `tx`・`rx` | `type`（種別名）、`seq`、`fields`（下表）、`hex`（符号化済みのバイト列。末尾の `00` を含む） |
 | `rx_error` | `reason`（`cobs_error`・`length_mismatch`・`crc_mismatch`・`unexpected_type`・`rx_overflow`）、`hex` |
 | `diag` | `reset_reason`、`reset_count`、`rx_cobs_errors`、`rx_len_errors`、`rx_crc_errors`、`rx_unexpected`、`rx_overflow`、`cmd_dropped_init`、`cmd_duplicates`、`tx_dropped`、`temp_clamped`、`temp_rejected`、`max_loop_cycles`、`max_task_cycles`（sense・control・link・ui・report・health の順の配列）、`overruns`。ホスト版の cycles はナノ秒 |
@@ -103,11 +127,15 @@ mcu_c_01 [--temp <℃>] [--scenario <file.csv>] [--log <file.jsonl>] [UART_PATH]
 | フェーズ | 内容 | 状態 |
 | --- | --- | --- |
 | P1 | ホスト版の骨組み・UART・契約テスト | 完了 |
-| P2 | 温度計測と状態遷移 | 実装済み（PR 中） |
-| P3 | ボタン・警報・ヘルス | 未着手 |
+| P2 | 温度計測と状態遷移 | 完了 |
+| P3 | ボタン・警報・ヘルス | 実装済み（PR 中） |
 | P4 | 品質ゲート | 未着手 |
 | P5 | STM32 ターゲット版 | 未着手 |
 | P6 | Renode | 未着手 |
 | P7 | 書類の仕上げ | 未着手 |
 
-button・alarm・health（ボタンの承認、LED・ブザー、ウォッチドッグ）は P3 で作ります。今は承認が入らないので、CRITICAL と SENSOR_FAULT からは戻りません。
+### ボタンと警報
+
+- 短押し：CRITICAL・SENSOR_FAULT で消音していなければ「消音」、それ以外は「承認」（CRITICAL・SENSOR_FAULT から戻す条件の1つ）
+- 長押し（3秒）：強制全開（ファン1000）を切り替える。再起動で解除され、上位断では解除しない
+- LED とブザーのパターンは詳細設計書 第5章の表のとおり。強制全開中の NORMAL は緑が 2Hz で点滅する

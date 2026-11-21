@@ -1,13 +1,15 @@
 /*
  * 仮想時間のシナリオテスト（sim_harness と tests/scenario/data の CSV）。
  * NFR-01、昇温と冷却の一連、故障（断線・短絡・ADC 無応答）、急な跳び、INIT の無応答、SET_THRESHOLD。
- * 承認による復帰はボタンが P3 なので、ここでは確かめない（単体テストで確かめる）。
+ * P3：承認の流れ、条件未達の承認、SENSOR_FAULT からの復帰、長押し、hang による再起動。
+ * sim_harness は疑似ウォッチドッグを常に見張るので、どのシナリオも health が正しくリフレッシュしていることを兼ねて確かめる。
  */
 #include <stdio.h>
 #include <string.h>
 
 #include "byteorder.h"
 #include "sim_harness.h"
+#include "temp_sensor.h"
 #include "unity.h"
 
 #define NFR01_LIMIT_MS 2500
@@ -262,6 +264,215 @@ static void test_set_threshold_takes_effect_next_step(void)
     TEST_ASSERT_EQUAL_UINT16(700, sim_pwm_now());
 }
 
+/* ---- P3：ボタン・警報・ヘルス ---- */
+
+/* t_from から t_to まで（含む）にブザーを鳴らした記録があるか */
+static bool buzzer_on_between(uint32_t t_from, uint32_t t_to)
+{
+    const sim_log_t *l = sim_log();
+    for (size_t i = 0; i < l->n_buzzer; i++) {
+        if (l->buzzer[i].on && l->buzzer[i].t_ms >= t_from && l->buzzer[i].t_ms <= t_to) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* 最初の CRITICAL まで進め、ブザーが鳴っていることを確かめる */
+static void reach_critical(uint32_t until)
+{
+    sim_run_until(until);
+    TEST_ASSERT_TRUE(sim_first_state(ST_CRITICAL) >= 0);
+    TEST_ASSERT_EQUAL_INT(ST_CRITICAL, sim_state());
+}
+
+static void test_ack_flow_silence_then_ack(void)
+{
+    load("ack_flow.csv");
+    reach_critical(34990u);
+    TEST_ASSERT_TRUE(buzzer_on_between(34000u, 34990u)); /* 冷えても鳴り続けている */
+    sim_run_until(35300u);                               /* 1回目の短押し（35200 に離す） */
+    TEST_ASSERT_FALSE(sim_buzzer());
+    sim_run_until(36990u);
+    TEST_ASSERT_EQUAL_INT(ST_CRITICAL, sim_state()); /* 消音だけで、承認ではない */
+    TEST_ASSERT_FALSE(buzzer_on_between(35220u, 36990u));
+    sim_run_until(42000u); /* 2回目の短押し（37200 に離す）で承認 */
+    int64_t t_back = sim_first_state(ST_NORMAL);
+    const sim_log_t *l = sim_log();
+    int64_t t_back_after = -1;
+    for (size_t i = 0; i < l->n_state; i++) {
+        if (l->state[i].from == ST_CRITICAL) {
+            t_back_after = (int64_t)l->state[i].t_ms;
+            TEST_ASSERT_EQUAL_INT(ST_NORMAL, l->state[i].to); /* 30℃ は warn 未満なので NORMAL */
+        }
+    }
+    printf("承認の流れ             : CRITICAL %lld ms、消音 35200 ms に離す、承認 37200 ms に離す → NORMAL %lld ms\n",
+           (long long)sim_first_state(ST_CRITICAL), (long long)t_back_after);
+    TEST_ASSERT_TRUE(t_back >= 0);
+    TEST_ASSERT_TRUE(t_back_after > 37200 && t_back_after <= 37300); /* 離しの確定のあとの最初の task_control */
+    TEST_ASSERT_EQUAL_size_t(1, sim_count_events(EV_THRESHOLD_CLEARED));
+    TEST_ASSERT_FALSE(sim_buzzer());
+    TEST_ASSERT_TRUE(sim_led(LED_GREEN));
+}
+
+static void test_ack_not_met_stays_critical(void)
+{
+    load("ack_not_met.csv");
+    reach_critical(29990u);
+    sim_run_until(31000u);
+    TEST_ASSERT_FALSE(sim_buzzer()); /* 1回目は消音 */
+    sim_run_until(34000u);           /* 2回目は承認だが、58℃ ≧ crit−hyst（57℃）なので行8に当たらない */
+    TEST_ASSERT_EQUAL_INT(ST_CRITICAL, sim_state());
+    sim_run_until(50000u); /* 30℃ まで冷えても、承認は持ち越さないので CRITICAL のまま */
+    TEST_ASSERT_EQUAL_INT(ST_CRITICAL, sim_state());
+    TEST_ASSERT_EQUAL_size_t(0, sim_count_events(EV_THRESHOLD_CLEARED));
+    TEST_ASSERT_EQUAL_UINT16(1000, sim_pwm_now());
+    printf("条件未達の承認         : 58℃ で承認（32200 ms に離す）→ CRITICAL のまま、30℃ に冷えても戻らない\n");
+}
+
+static void test_sensor_fault_early_ack_is_invalid(void)
+{
+    load("fault_recover_early_ack.csv");
+    sim_run_until(8250u);
+    TEST_ASSERT_EQUAL_INT(ST_SENSOR_FAULT, sim_state());
+    TEST_ASSERT_FALSE(sim_buzzer()); /* 1回目（8200 に離し、8210 に確定）は消音 */
+    sim_run_until(8499u);            /* 2回目（8400 に離す）の承認は 8500 の task_control で渡る */
+    temp_reading_t r;
+    temp_get(&r);
+    TEST_ASSERT_TRUE(r.valid_run < 10u);
+    sim_run_until(15000u);
+    temp_get(&r);
+    TEST_ASSERT_TRUE(r.valid_run >= 10u); /* 条件はそろったが、承認は持ち越さない */
+    TEST_ASSERT_EQUAL_INT(ST_SENSOR_FAULT, sim_state());
+    TEST_ASSERT_EQUAL_size_t(0, sim_count_events(EV_SENSOR_RECOVERED));
+    printf("SENSOR_FAULT（早い承認）: valid_run < 10 で承認 → SENSOR_FAULT のまま\n");
+}
+
+static void test_sensor_fault_recover_silence_then_ack(void)
+{
+    load("fault_recover_ack.csv");
+    sim_run_until(10990u);
+    TEST_ASSERT_EQUAL_INT(ST_SENSOR_FAULT, sim_state());
+    TEST_ASSERT_TRUE(sim_buzzer()); /* 連続音 */
+    temp_reading_t r;
+    temp_get(&r);
+    TEST_ASSERT_TRUE(r.ready && r.valid_run >= 10u);
+    sim_run_until(11300u);
+    TEST_ASSERT_FALSE(sim_buzzer()); /* 1回目は消音 */
+    TEST_ASSERT_EQUAL_INT(ST_SENSOR_FAULT, sim_state());
+    sim_run_until(15000u);
+    const sim_log_t *l = sim_log();
+    int64_t t_rec = -1;
+    for (size_t i = 0; i < l->n_state; i++) {
+        if (l->state[i].from == ST_SENSOR_FAULT) {
+            t_rec = (int64_t)l->state[i].t_ms;
+            TEST_ASSERT_EQUAL_INT(ST_NORMAL, l->state[i].to); /* 25℃ の分類先 */
+        }
+    }
+    printf("SENSOR_FAULT からの復帰 : 消音 11200 ms に離す、承認 12200 ms に離す → NORMAL %lld ms\n", (long long)t_rec);
+    TEST_ASSERT_TRUE(t_rec > 12200 && t_rec <= 12300);
+    TEST_ASSERT_EQUAL_size_t(1, sim_count_events(EV_SENSOR_RECOVERED));
+    int e = sim_find_tx(0, FRAME_EVENT, EV_SENSOR_RECOVERED);
+    TEST_ASSERT_EQUAL_UINT8(ST_SENSOR_FAULT, tx(e)->u.event.from);
+    TEST_ASSERT_EQUAL_UINT8(ST_NORMAL, tx(e)->u.event.to);
+    TEST_ASSERT_EQUAL_UINT16(0, sim_pwm_now());
+}
+
+/* t_from から t_to まで（含む）の緑の点灯の切り替わりを数える */
+static int green_toggles(uint32_t t_from, uint32_t t_to)
+{
+    int n = 0;
+    bool prev = sim_led(LED_GREEN);
+    for (uint32_t t = t_from; t <= t_to; t += 10u) {
+        sim_run_until(t);
+        if (sim_led(LED_GREEN) != prev) {
+            n++;
+            prev = sim_led(LED_GREEN);
+        }
+    }
+    return n;
+}
+
+static void test_long_press_toggles_force_full(void)
+{
+    load("long_press.csv");
+    sim_run_until(4990u);
+    TEST_ASSERT_EQUAL_INT(ST_NORMAL, sim_state());
+    TEST_ASSERT_EQUAL_UINT16(0, sim_pwm_now());
+    int64_t t_on = -1;
+    sim_run_until(8500u);
+    t_on = sim_first_pwm_at_least(5000u, 1000u);
+    TEST_ASSERT_TRUE(t_on >= 0);
+    TEST_ASSERT_EQUAL_INT64(8010, t_on); /* 押しの確定（5010）から3000ms。離すのを待たない */
+    int toggles = green_toggles(8600u, 10590u); /* 2Hz：2秒で8回切り替わる */
+    TEST_ASSERT_EQUAL_INT(8, toggles);
+    sim_run_until(11990u);
+    TEST_ASSERT_EQUAL_UINT16(1000, sim_pwm_now()); /* 離しても戻らない（短押しにもならない） */
+    TEST_ASSERT_EQUAL_INT(ST_NORMAL, sim_state());
+    sim_run_until(20000u);
+    const sim_log_t *l = sim_log();
+    int64_t t_off = -1;
+    for (size_t i = 0; i < l->n_pwm; i++) {
+        if (l->pwm[i].t_ms > 12000u && l->pwm[i].pm == 0u) {
+            t_off = (int64_t)l->pwm[i].t_ms;
+            break;
+        }
+    }
+    printf("長押し                 : 5000 ms に押す → 強制全開 %lld ms、12000 ms に押す → 解除 %lld ms\n",
+           (long long)t_on, (long long)t_off);
+    TEST_ASSERT_EQUAL_INT64(15010, t_off);
+    TEST_ASSERT_TRUE(sim_led(LED_GREEN)); /* 点灯に戻る */
+    TEST_ASSERT_EQUAL_INT(0, green_toggles(19000u, 20000u));
+    TEST_ASSERT_EQUAL_INT(1, (int)sim_log()->n_state); /* INIT → NORMAL だけ */
+}
+
+static void test_long_press_neither_silences_nor_acks(void)
+{
+    load("long_press_critical.csv");
+    reach_critical(29990u);
+    sim_run_until(40000u);
+    TEST_ASSERT_TRUE(buzzer_on_between(33600u, 40000u)); /* 長押しのあとも鳴っている */
+    TEST_ASSERT_EQUAL_INT(ST_CRITICAL, sim_state());     /* 30℃ でも承認にならない */
+    TEST_ASSERT_TRUE(firmware_force_full());
+    TEST_ASSERT_EQUAL_UINT16(1000, sim_pwm_now());
+}
+
+static void test_hang_watchdog_reboot(void)
+{
+    load("hang_reboot.csv");
+    sim_run_until(6000u);
+    const sim_log_t *l = sim_log();
+    TEST_ASSERT_EQUAL_size_t(2, l->n_boot);
+    TEST_ASSERT_EQUAL_INT(RESET_POWER_ON, l->boot[0].reason);
+    TEST_ASSERT_EQUAL_UINT16(0, l->boot[0].count);
+    TEST_ASSERT_EQUAL_INT(RESET_WATCHDOG, l->boot[1].reason);
+    TEST_ASSERT_EQUAL_UINT16(1, l->boot[1].count);
+    TEST_ASSERT_NOT_EQUAL(l->boot[0].boot_id, l->boot[1].boot_id);
+    uint32_t t_reset = l->boot[1].t_ms;
+    /* 3000ms のループは hang で止まるので、最後のリフレッシュは 2900ms の task_health。そこから500ms */
+    TEST_ASSERT_EQUAL_UINT32(3400u, t_reset);
+    for (size_t i = 0; i < l->n_tx; i++) {
+        TEST_ASSERT_FALSE(l->tx[i].t_ms >= 3000u && l->tx[i].t_ms < t_reset); /* hang の間は何も送らない */
+    }
+    int s = -1;
+    for (size_t i = 0; i < l->n_tx; i++) {
+        if (l->tx[i].t_ms >= t_reset && l->tx[i].f.type == (uint8_t)FRAME_STATE) {
+            s = (int)i;
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(s >= 0);
+    TEST_ASSERT_EQUAL_UINT16(0, tx(s)->seq);
+    TEST_ASSERT_EQUAL_UINT32(l->boot[1].boot_id, tx(s)->u.state.boot_id);
+    TEST_ASSERT_EQUAL_UINT8(FRAME_EVENT, tx(s + 1)->type);
+    TEST_ASSERT_EQUAL_UINT8(EV_BOOT, tx(s + 1)->u.event.code);
+    TEST_ASSERT_EQUAL_UINT16(0, tx(s + 1)->seq);
+    TEST_ASSERT_TRUE(tx(s + 1)->u.event.uptime_ms < 2000u); /* uptime_ms は 0 から数え直す */
+    printf("hang（仮想時間）        : hang 3000 ms → 再起動 %u ms → STATE・BOOT %u ms（reset_reason watchdog、回数 1）\n",
+           t_reset, sim_log()->tx[s].t_ms);
+    TEST_ASSERT_EQUAL_INT(ST_NORMAL, sim_state());
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -276,5 +487,12 @@ int main(void)
     RUN_TEST(test_jump_rejected_three_times_then_fault);
     RUN_TEST(test_init_adc_stall);
     RUN_TEST(test_set_threshold_takes_effect_next_step);
+    RUN_TEST(test_ack_flow_silence_then_ack);
+    RUN_TEST(test_ack_not_met_stays_critical);
+    RUN_TEST(test_sensor_fault_early_ack_is_invalid);
+    RUN_TEST(test_sensor_fault_recover_silence_then_ack);
+    RUN_TEST(test_long_press_toggles_force_full);
+    RUN_TEST(test_long_press_neither_silences_nor_acks);
+    RUN_TEST(test_hang_watchdog_reboot);
     return UNITY_END();
 }
