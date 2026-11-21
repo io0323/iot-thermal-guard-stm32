@@ -1,0 +1,6 @@
+t_ms,temp_c,event
+# ADC 無応答：5000ms から値を出さない、15000ms に再開
+0,25,
+5000,25,adc_stall
+15000,25,adc_resume
+25000,25,

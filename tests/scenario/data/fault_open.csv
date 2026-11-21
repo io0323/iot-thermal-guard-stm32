@@ -1,0 +1,6 @@
+t_ms,temp_c,event
+# 断線：5000ms から生値 4095、15000ms に戻す
+0,25,
+5000,25,sensor_open
+15000,25,sensor_ok
+25000,25,

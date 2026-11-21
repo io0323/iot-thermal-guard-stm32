@@ -1,0 +1,4 @@
+t_ms,temp_c,event
+# INIT：ADC が最初から無応答 → 2000ms で SENSOR_FAULT
+0,25,adc_stall
+5000,25,

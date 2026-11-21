@@ -1,0 +1,6 @@
+t_ms,temp_c,event
+# 短絡：5000ms から生値 0、15000ms に戻す
+0,25,
+5000,25,sensor_short
+15000,25,sensor_ok
+25000,25,
