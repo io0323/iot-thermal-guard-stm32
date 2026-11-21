@@ -1,6 +1,10 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
   "configurePresets": [
     {
       "name": "host-debug",
@@ -13,17 +17,50 @@
         "TG_SANITIZE": "ON",
         "BUILD_TESTING": "ON"
       }
+    },
+    {
+      "name": "host-coverage",
+      "displayName": "ホスト版＋全テスト（gcov、サニタイザーなし）",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/host-cov",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TG_COVERAGE": "ON",
+        "TG_SANITIZE": "OFF",
+        "BUILD_TESTING": "ON"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "host-debug", "configurePreset": "host-debug" }
+    {
+      "name": "host-debug",
+      "configurePreset": "host-debug"
+    },
+    {
+      "name": "host-coverage",
+      "configurePreset": "host-coverage"
+    }
   ],
   "testPresets": [
     {
       "name": "host-debug",
       "configurePreset": "host-debug",
-      "output": { "outputOnFailure": true },
-      "execution": { "noTestsAction": "error" }
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
+    },
+    {
+      "name": "host-coverage",
+      "configurePreset": "host-coverage",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error"
+      }
     }
   ]
 }

@@ -1,0 +1,17 @@
+# Doxygen（P4 品質ゲート、NFR-10）。app・service・lib・ports の公開ヘッダに、コメントのない関数・型・マクロがあれば失敗する。
+# 出力先は tools/quality.sh が OUTPUT_DIRECTORY を足して渡す。
+PROJECT_NAME           = iot-thermal-guard-stm32
+INPUT                  = app service lib ports
+FILE_PATTERNS          = *.h
+RECURSIVE              = NO
+OPTIMIZE_OUTPUT_FOR_C  = YES
+EXTRACT_ALL            = NO
+EXTRACT_STATIC         = NO
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+WARN_AS_ERROR          = FAIL_ON_WARNINGS
+QUIET                  = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HAVE_DOT               = NO

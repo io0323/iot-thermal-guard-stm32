@@ -1,0 +1,8 @@
+# cppcheck（MISRA アドオン）の抑止。逸脱の理由は docs/adr/ADR-0002-misra-deviations.md に1件ずつ書く。
+# 規則の本文はライセンスの都合でリポジトリに入れない（規則番号だけで判定する）。
+# 各行の末尾に ADR-0002 の番号を書く（「#」だけの行は cppcheck が読めないので使わない）。
+
+# 規則の再分類（GRP）：Disapplied にした規則だけは全体に抑止する（ADR-0002 R-01、open-questions #40）
+misra-c2012-15.5 // ADR-0002 R-01（Advisory → Disapplied）
+
+# 個別の逸脱：1件ずつ「規則:ファイル:行 // ADR-0002 D-番号」。まとめての抑止はしない

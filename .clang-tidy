@@ -1,0 +1,23 @@
+# clang-tidy の設定（P4 品質ゲート、NFR-07）。対象は app・service・lib・ports・main（tools/quality.sh が渡す）。
+# 合否は CI（ubuntu-24.04 の clang-tidy）の結果を正とする。
+#
+# 外した検査と理由：
+#   readability-magic-numbers     … 設計書の表の値（周期・しきい値・境界）をそのまま書く箇所が多く、
+#                                   定数名を付けても読みやすくならない。値は単体テストで境界を確かめる
+#   readability-identifier-length … ループの i、時刻の t など、短い名前が慣用の箇所に当たるため
+#
+# 有効のまま個別に抑止しているもの：
+#   bugprone-easily-swappable-parameters … 9か所に1件ずつ NOLINT と理由（取り違えたら落ちる単体テストの名前）を書く
+#                                          （open-questions #41）
+Checks: >-
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  readability-*,
+  -readability-magic-numbers,
+  -readability-identifier-length
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/(app|service|lib|ports|main)/.*'
+FormatStyle: none
