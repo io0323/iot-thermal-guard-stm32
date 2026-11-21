@@ -14,8 +14,9 @@
 #include "safety_fsm.h"
 
 #define FW_TASK_COUNT 6u
+#define FW_INIT_MAX_MS 2000u /**< INIT の最長。これまでに ready にならなければ SENSOR_FAULT */
 
-/** 診断値（詳細設計書 第7章の表）。P1 で数えないもの（temp_clamped など）は 0。 */
+/** 診断値（詳細設計書 第7章の表）。 */
 typedef struct {
     uint8_t reset_reason;
     uint16_t reset_count;
