@@ -9,6 +9,7 @@
 #include "fake_ports.h"
 #include "firmware.h"
 #include "link_frame.h"
+#include "tick.h"
 #include "unity.h"
 
 #define MAX_FRAMES 512
@@ -40,7 +41,7 @@ static void parse_tx(void)
 
 static void run_until(uint32_t t)
 {
-    while ((int32_t)(t - s_now) >= 0) {
+    while (tick_reached(t, s_now)) {
         g_fake.now_ms = s_now;
         firmware_poll();
         parse_tx();

@@ -27,7 +27,7 @@ IoT・組込みポートフォリオ4作品のうちの1つで、上位（作品
 - C11、`-Wall -Wextra -Werror -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes -Wcast-align -Wswitch-enum -fno-common`。ホスト版は `-funsigned-char`
 - app・service・lib では `malloc` 系・`float`・`double` を使わない（bsp_host の CLI と温度→生値の変換だけ例外）
 - データに素の `char` を使わない（`uint8_t`）。フレームは構造体を memcpy せず、`put_u16le()` などで1項目ずつ組み立てる
-- 時刻の比較は必ず `(int32_t)(now - t) >= 0` の形（uptime_ms は u32 で一周する）
+- 時刻の比較は必ず `tick_reached()`（`lib/tick.h`）を使う（uptime_ms は u32 で一周する）
 - ISR はフラグを立てるかバッファに入れるだけ。ISR と共有する変数は `volatile`
 - 公開関数には Doxygen コメント（`@brief`・`@param`・`@return`）。循環的複雑度は 10 以下を目安にする
 

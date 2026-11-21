@@ -7,7 +7,7 @@
 # 報告ファイル（カバレッジの HTML、各ツールの出力、summary.txt）は出力先に置く。
 #   forbidden  : tools/check_forbidden.sh
 #   lizard     : 循環的複雑度 10 以下（app・service・lib・main・bsp/host）
-#   cppcheck   : MISRA アドオン＋warning・style・portability。抑止は misra-suppressions.txt だけ（ADR-0002）
+#   cppcheck   : MISRA アドオン＋warning・style・portability。抑止は 15.5 の再分類（misra-suppressions.txt）と、該当行の直前のインライン抑止（ADR-0002）
 #   clang-tidy : .clang-tidy。host-debug の compile_commands.json を使う（app・service・lib・ports・main）
 #   doxygen    : Doxyfile。app・service・lib・ports の公開ヘッダ
 #   coverage   : host-coverage で CTest を流し、gcovr で app・service の行カバレッジ 80% 以上

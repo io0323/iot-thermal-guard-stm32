@@ -16,6 +16,7 @@
 #include "ntc_model.h"
 #include "ring_buffer.h"
 #include "scenario.h"
+#include "tick.h"
 
 #define RX_RING_SIZE 256u
 #define TX_BUF_SIZE 1024u
@@ -260,7 +261,7 @@ bool bsp_host_scenario_hang(void)
 
 bool bsp_host_wdt_expired(void)
 {
-    return (int32_t)(host_now_ms() - (s_last_refresh_ms + HOST_WDT_TIMEOUT_MS)) >= 0;
+    return tick_reached(host_now_ms(), s_last_refresh_ms + HOST_WDT_TIMEOUT_MS);
 }
 
 void bsp_host_watchdog_reset(char *const argv[])

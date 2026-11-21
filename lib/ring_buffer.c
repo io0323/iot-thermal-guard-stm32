@@ -15,6 +15,7 @@ bool rb_init(ring_buffer_t *rb, uint8_t *storage, uint32_t capacity)
     return true;
 }
 
+// cppcheck-suppress misra-c2012-8.7 ; ADR-0002 D-14（単体テストから直接呼ぶ公開関数）
 uint32_t rb_count(const ring_buffer_t *rb)
 {
     return rb->head - rb->tail;

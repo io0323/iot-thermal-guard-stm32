@@ -93,6 +93,7 @@ typedef struct {
 typedef struct {
     uint8_t type; /**< frame_type_t の値 */
     uint16_t seq; /**< 種別ごとの連番 */
+    // cppcheck-suppress misra-c2012-19.2 ; ADR-0002 D-15（フレームの項目の union）
     union {
         link_telemetry_t telemetry;
         link_event_t event;
@@ -100,6 +101,7 @@ typedef struct {
         link_state_t state;
         link_cmd_t cmd;
         link_ack_t ack;
+    // cppcheck-suppress misra-c2012-19.2 ; ADR-0002 D-16（同じ union の閉じ側の行）
     } u; /**< 種別ごとの項目（type で選ぶ） */
 } link_frame_t;
 

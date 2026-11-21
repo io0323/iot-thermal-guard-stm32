@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "fake_ports.h"
+#include "tick.h"
 
 static ports_t s_ports;
 static scenario_player_t s_player;
@@ -109,7 +110,7 @@ void sim_send(link_frame_t f)
 
 void sim_run_until(uint32_t t_ms)
 {
-    while ((int32_t)(t_ms - s_now) >= 0) {
+    while (tick_reached(t_ms, s_now)) {
         g_fake.now_ms = s_now - s_boot_at;
         scenario_player_advance(&s_player, s_now);
         uint16_t raw = 0u;
@@ -133,7 +134,7 @@ void sim_run_until(uint32_t t_ms)
         }
         g_fake.tx_len = 0u; /* 送信は観測フックで記録済み。フェイクの送信バッファを空ける */
         s_now++;
-        if ((int32_t)(s_now - (s_last_refresh + SIM_WDT_TIMEOUT_MS)) >= 0) {
+        if (tick_reached(s_now, s_last_refresh + SIM_WDT_TIMEOUT_MS)) {
             boot(RESET_WATCHDOG, (uint16_t)(g_fake.reset_count + 1u));
         }
     }

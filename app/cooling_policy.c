@@ -8,6 +8,7 @@
 #define AUTO_FULL_C100 4500
 #define AUTO_MAX_PM 400
 
+// cppcheck-suppress misra-c2012-8.7 ; ADR-0002 D-11（単体テストから直接呼ぶ公開関数）
 uint16_t cooling_auto(int16_t t_c100)
 {
     if (t_c100 < AUTO_START_C100) {
@@ -20,6 +21,7 @@ uint16_t cooling_auto(int16_t t_c100)
     return (uint16_t)pm;
 }
 
+// cppcheck-suppress misra-c2012-8.7 ; ADR-0002 D-12（単体テストから直接呼ぶ公開関数）
 uint16_t cooling_floor(fsm_state_t s)
 {
     switch (s) {
