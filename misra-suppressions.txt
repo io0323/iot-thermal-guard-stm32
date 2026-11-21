@@ -6,3 +6,19 @@
 misra-c2012-15.5 // ADR-0002 R-01（Advisory → Disapplied）
 
 # 個別の逸脱：1件ずつ「規則:ファイル:行 // ADR-0002 D-番号」。まとめての抑止はしない
+misra-c2012-10.8:app/command_handler.c:180 // ADR-0002 D-01（時刻の比較：リースの期限）
+misra-c2012-10.8:main/firmware.c:150 // ADR-0002 D-02（時刻の比較：INIT の最長2000ms）
+misra-c2012-10.8:service/button.c:28 // ADR-0002 D-03（時刻の比較：長押しの3000ms）
+misra-c2012-10.8:service/health.c:33 // ADR-0002 D-04（時刻の比較：report の期限）
+misra-c2012-10.8:service/report.c:46 // ADR-0002 D-05（時刻の比較：STATE の60秒）
+misra-c2012-10.8:service/scheduler.c:37 // ADR-0002 D-06（時刻の比較：オーバーランの追いつき）
+misra-c2012-10.8:service/scheduler.c:51 // ADR-0002 D-07（時刻の比較：タスクの期限）
+misra-c2012-10.8:service/temp_sensor.c:156 // ADR-0002 D-08（時刻の比較：ADC 無応答の300ms）
+misra-c2012-10.8:service/temp_sensor.c:168 // ADR-0002 D-09（時刻の比較：restart の1000ms）
+misra-c2012-10.8:service/upstream.c:24 // ADR-0002 D-10（時刻の比較：上位断の10秒）
+misra-c2012-8.7:app/cooling_policy.c:11 // ADR-0002 D-11（単体テストから直接呼ぶ公開関数：cooling_auto）
+misra-c2012-8.7:app/cooling_policy.c:23 // ADR-0002 D-12（単体テストから直接呼ぶ公開関数：cooling_floor）
+misra-c2012-8.7:app/safety_fsm.c:137 // ADR-0002 D-13（単体テストから直接呼ぶ公開関数：fsm_classify）
+misra-c2012-8.7:lib/ring_buffer.c:18 // ADR-0002 D-14（単体テストから直接呼ぶ公開関数：rb_count）
+misra-c2012-19.2:service/link_frame.h:96 // ADR-0002 D-15（フレームの項目の union）
+misra-c2012-19.2:service/link_frame.h:103 // ADR-0002 D-16（フレームの項目の union、閉じ側の行）
