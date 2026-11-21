@@ -8,14 +8,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MOVING_AVG_N 8u
+#define MOVING_AVG_N 8U /**< 移動平均の窓の大きさ */
 
 /** 移動平均の窓。 */
 typedef struct {
-    int16_t buf[MOVING_AVG_N];
-    int32_t sum;
-    uint8_t count;
-    uint8_t next;
+    int16_t buf[MOVING_AVG_N]; /**< 直近の値（リング） */
+    int32_t sum; /**< buf の合計 */
+    uint8_t count; /**< 入っている数（最大 MOVING_AVG_N） */
+    uint8_t next; /**< 次に書く位置 */
 } moving_avg8_t;
 
 /**

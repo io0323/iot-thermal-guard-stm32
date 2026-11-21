@@ -1,5 +1,7 @@
 #include "upstream.h"
 
+#include <stdint.h>
+
 void upstream_init(upstream_t *u, uint32_t now_ms)
 {
     u->state = UPSTREAM_UNKNOWN;

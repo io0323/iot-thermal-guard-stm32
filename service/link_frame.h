@@ -24,75 +24,75 @@ typedef enum {
     FRAME_ACK = 0x11
 } frame_type_t;
 
-#define LINK_HEADER_SIZE 4u
-#define LINK_CRC_SIZE 2u
-#define LINK_PAYLOAD_MAX 200u
-#define LINK_CMD_HEAD_SIZE 5u
-#define LINK_CMD_ARGS_MAX (LINK_PAYLOAD_MAX - LINK_CMD_HEAD_SIZE)
-#define LINK_RAW_MAX (LINK_HEADER_SIZE + LINK_PAYLOAD_MAX + LINK_CRC_SIZE)
+#define LINK_HEADER_SIZE 4U /**< ヘッダの大きさ（type・seq・len） */
+#define LINK_CRC_SIZE 2U /**< CRC の大きさ */
+#define LINK_PAYLOAD_MAX 200U /**< ペイロードの最大 */
+#define LINK_CMD_HEAD_SIZE 5U /**< CMD の固定部分（cmd_ref・op・ttl_s）の大きさ */
+#define LINK_CMD_ARGS_MAX (LINK_PAYLOAD_MAX - LINK_CMD_HEAD_SIZE) /**< CMD の args の最大 */
+#define LINK_RAW_MAX (LINK_HEADER_SIZE + LINK_PAYLOAD_MAX + LINK_CRC_SIZE) /**< COBS で符号化する前のフレームの最大 */
 /** 符号化後の最大（区切りの 0x00 を含む）。 */
-#define LINK_ENCODED_MAX (COBS_MAX_ENCODED(LINK_RAW_MAX) + 1u)
+#define LINK_ENCODED_MAX (COBS_MAX_ENCODED(LINK_RAW_MAX) + 1U)
 
 /** 各種別のペイロード長（CMD は最短）。 */
-#define LINK_LEN_TELEMETRY 10u
-#define LINK_LEN_EVENT 10u
-#define LINK_LEN_HEARTBEAT 4u
-#define LINK_LEN_STATE 8u
-#define LINK_LEN_ACK 7u
+#define LINK_LEN_TELEMETRY 10U
+#define LINK_LEN_EVENT 10U /**< EVENT のペイロード長 */
+#define LINK_LEN_HEARTBEAT 4U /**< HEARTBEAT のペイロード長 */
+#define LINK_LEN_STATE 8U /**< STATE のペイロード長 */
+#define LINK_LEN_ACK 7U /**< ACK のペイロード長 */
 
 /** TELEMETRY 0x01 */
 typedef struct {
-    uint32_t uptime_ms;
-    int16_t temp_c100;
-    uint8_t quality;
-    uint8_t state;
-    uint16_t fan_pm;
+    uint32_t uptime_ms; /**< 起動からのミリ秒 */
+    int16_t temp_c100; /**< 温度（0.01℃、故障中は −32768） */
+    uint8_t quality; /**< 品質（0 良好、2 故障） */
+    uint8_t state; /**< 状態 */
+    uint16_t fan_pm; /**< ファンの duty（‰） */
 } link_telemetry_t;
 
 /** EVENT 0x02 */
 typedef struct {
-    uint32_t uptime_ms;
-    uint8_t code;
-    uint8_t severity;
-    uint8_t from;
-    uint8_t to;
-    int16_t temp_c100;
+    uint32_t uptime_ms; /**< 起動からのミリ秒 */
+    uint8_t code; /**< EVENT の code */
+    uint8_t severity; /**< 重大度 */
+    uint8_t from; /**< 遷移の前の状態 */
+    uint8_t to; /**< 遷移の後の状態 */
+    int16_t temp_c100; /**< その時点の温度（0.01℃） */
 } link_event_t;
 
 /** HEARTBEAT 0x03 */
 typedef struct {
-    uint32_t uptime_ms;
+    uint32_t uptime_ms; /**< 起動からのミリ秒 */
 } link_heartbeat_t;
 
 /** STATE 0x04 */
 typedef struct {
-    uint16_t fw_version;
-    uint32_t boot_id;
-    uint16_t period_ms;
+    uint16_t fw_version; /**< ファームウェアの版 */
+    uint32_t boot_id; /**< 起動ごとの識別子 */
+    uint16_t period_ms; /**< TELEMETRY の周期（ms） */
 } link_state_t;
 
 /** CMD 0x10。args は生のバイト列（解釈は command_handler）。 */
 typedef struct {
-    uint16_t cmd_ref;
-    uint8_t op;
-    uint16_t ttl_s;
-    uint8_t args_len;
-    uint8_t args[LINK_CMD_ARGS_MAX];
+    uint16_t cmd_ref; /**< 指令の識別子（ACK で返す） */
+    uint8_t op; /**< 指令の種類 */
+    uint16_t ttl_s; /**< 有効時間（秒） */
+    uint8_t args_len; /**< args の長さ */
+    uint8_t args[LINK_CMD_ARGS_MAX]; /**< 指令の引数 */
 } link_cmd_t;
 
 /** ACK 0x11 */
 typedef struct {
-    uint16_t cmd_ref;
-    uint8_t status;
-    uint8_t reason;
-    uint8_t limited;
-    uint16_t applied;
+    uint16_t cmd_ref; /**< 対応する CMD の cmd_ref */
+    uint8_t status; /**< status */
+    uint8_t reason; /**< reason */
+    uint8_t limited; /**< 安全側の下限に丸めたか */
+    uint16_t applied; /**< 実際に適用した値 */
 } link_ack_t;
 
 /** 復号したフレーム、または符号化するフレーム。 */
 typedef struct {
     uint8_t type; /**< frame_type_t の値 */
-    uint16_t seq;
+    uint16_t seq; /**< 種別ごとの連番 */
     union {
         link_telemetry_t telemetry;
         link_event_t event;
@@ -100,7 +100,7 @@ typedef struct {
         link_state_t state;
         link_cmd_t cmd;
         link_ack_t ack;
-    } u;
+    } u; /**< 種別ごとの項目（type で選ぶ） */
 } link_frame_t;
 
 /** 受信で捨てた理由（詳細設計書 第6章、open-questions #11・#12）。 */

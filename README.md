@@ -10,6 +10,7 @@
 ## 必要なもの
 
 - CMake 3.25 以上、Ninja、C11 のコンパイラ（clang または gcc）、Python 3
+- 品質ゲートを手元で流すには Docker（下の「品質ゲート」）
 - 契約テストと再起動の結合テストを動かすには [uv](https://docs.astral.sh/uv/)（結合テストは Python 3.12 を使う。`.python-version` で指定しているので uv が用意する）
 
 ## ビルドとテスト
@@ -115,6 +116,34 @@ UART とログのファイルは `O_CLOEXEC` で開いていて、起動し直�
 | CMD | `cmd_ref`、`op`、`ttl_s`、`args`（16進の文字列） |
 | ACK | `cmd_ref`、`status`、`reason`、`limited`、`applied` |
 
+## 品質ゲート
+
+CI の `quality` ジョブ（ubuntu-24.04）で、次のゲートをすべて通ることを確かめます。どれか1つでも落ちたら失敗です。
+**ルールの結果はツールの版で変わるので、合否は CI の結果を正とします。**
+
+| ゲート | ツール（CI の版） | 合格の基準 | 設定 |
+| --- | --- | --- | --- |
+| カバレッジ | gcc 13.3＋gcovr 8.x（プリセット `host-coverage`） | app・service の行カバレッジ 80% 以上 | `CMakePresets.json`、`cmake/coverage.cmake` |
+| MISRA C:2012 | cppcheck 2.13.0（`--addon=misra`） | 抑止されていない指摘ゼロ。必須規則（Mandatory）の逸脱なし | `misra-suppressions.txt`、[ADR-0002](docs/adr/ADR-0002-misra-deviations.md) |
+| clang-tidy | clang-tidy 18.1.3 | 指摘ゼロ（`WarningsAsErrors: '*'`） | `.clang-tidy` |
+| 循環的複雑度 | lizard 1.26.1 | 10 以下（app・service・lib・main・bsp/host） | `tools/quality.sh` |
+| Doxygen | doxygen 1.9.8 | 警告ゼロ（app・service・lib・ports の公開ヘッダ） | `Doxyfile` |
+| 禁止項目 | grep | app・service・lib に malloc 系・float・double・STM32 がない | `tools/check_forbidden.sh` |
+
+- 対象は app・service・lib・ports・main です（lizard は bsp/host も）。bsp・tests・third_party・external は対象外です
+- MISRA の逸脱は [ADR-0002](docs/adr/ADR-0002-misra-deviations.md) に1件ずつ書きます。規則の再分類（GRP）の一覧は ADR-0002 の「[規則の再分類](docs/adr/ADR-0002-misra-deviations.md#規則の再分類grp)」にあり、今は規則 15.5 だけを Disapplied にしています
+- 設計判断の記録は [docs/adr/](docs/adr/README.md) にあります
+
+### 手元で流す
+
+cppcheck・clang-tidy・Doxygen は、手元でも CI と同じ ubuntu:24.04 のコンテナで流します（Homebrew の版の違いで結果がずれないように）。要るのは Docker だけです。
+
+```sh
+tools/quality-docker.sh        # 報告は build/quality-docker/（summary.txt、各ツールの出力、coverage/index.html）
+```
+
+CI はコンテナを使わず、同じ `tools/quality.sh` を直接呼びます。ツールがそろった環境なら `tools/quality.sh [出力先]` でも流せます。
+
 ## 依存しているもの（submodule）
 
 | パス | 版 |
@@ -128,8 +157,8 @@ UART とログのファイルは `O_CLOEXEC` で開いていて、起動し直�
 | --- | --- | --- |
 | P1 | ホスト版の骨組み・UART・契約テスト | 完了 |
 | P2 | 温度計測と状態遷移 | 完了 |
-| P3 | ボタン・警報・ヘルス | 実装済み（PR 中） |
-| P4 | 品質ゲート | 未着手 |
+| P3 | ボタン・警報・ヘルス | 完了 |
+| P4 | 品質ゲート | 実装済み（PR 中） |
 | P5 | STM32 ターゲット版 | 未着手 |
 | P6 | Renode | 未着手 |
 | P7 | 書類の仕上げ | 未着手 |

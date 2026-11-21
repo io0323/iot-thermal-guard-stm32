@@ -8,6 +8,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 include(warnings)
 include(sanitizers)
+include(coverage)
 
 # 依存の向き：app → service → lib、app・service → ports。逆向きのリンクは作らない。
 

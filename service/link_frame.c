@@ -1,5 +1,7 @@
 #include "link_frame.h"
 
+#include <stdint.h>
+
 #include "byteorder.h"
 #include "cobs.h"
 #include "crc16.h"
@@ -74,7 +76,7 @@ size_t link_payload_pack(const link_frame_t *f, uint8_t *out, size_t cap)
         break;
     case FRAME_CMD:
         if (f->u.cmd.args_len > LINK_CMD_ARGS_MAX) {
-            return 0u;
+            return 0U;
         }
         n = pack_cmd(&f->u.cmd, tmp);
         break;
@@ -82,10 +84,10 @@ size_t link_payload_pack(const link_frame_t *f, uint8_t *out, size_t cap)
         n = pack_ack(&f->u.ack, tmp);
         break;
     default:
-        return 0u;
+        return 0U;
     }
     if (n > cap) {
-        return 0u;
+        return 0U;
     }
     for (size_t i = 0; i < n; i++) {
         out[i] = tmp[i];
@@ -93,10 +95,12 @@ size_t link_payload_pack(const link_frame_t *f, uint8_t *out, size_t cap)
     return n;
 }
 
+/* 取り違えの検出：type と seq の取り違えは test_golden の test_encode_device_frames_match_hex で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 size_t link_encode_raw(uint8_t type, uint16_t seq, const uint8_t *payload, size_t len, uint8_t *out, size_t cap)
 {
     if (len > LINK_PAYLOAD_MAX) {
-        return 0u;
+        return 0U;
     }
     uint8_t raw[LINK_RAW_MAX];
     raw[0] = type;
@@ -107,23 +111,23 @@ size_t link_encode_raw(uint8_t type, uint16_t seq, const uint8_t *payload, size_
     }
     size_t body = LINK_HEADER_SIZE + len;
     put_u16le(&raw[body], crc16_ccitt_false(raw, body));
-    if (cap < 1u) {
-        return 0u;
+    if (cap < 1U) {
+        return 0U;
     }
-    size_t n = cobs_encode(raw, body + LINK_CRC_SIZE, out, cap - 1u);
-    if (n == 0u) {
-        return 0u;
+    size_t n = cobs_encode(raw, body + LINK_CRC_SIZE, out, cap - 1U);
+    if (n == 0U) {
+        return 0U;
     }
-    out[n] = 0u;
-    return n + 1u;
+    out[n] = 0U;
+    return n + 1U;
 }
 
 size_t link_frame_encode(const link_frame_t *f, uint8_t *out, size_t cap)
 {
     uint8_t payload[LINK_PAYLOAD_MAX];
     size_t len = link_payload_pack(f, payload, sizeof payload);
-    if (len == 0u) {
-        return 0u;
+    if (len == 0U) {
+        return 0U;
     }
     return link_encode_raw(f->type, f->seq, payload, len, out, cap);
 }
@@ -131,28 +135,25 @@ size_t link_frame_encode(const link_frame_t *f, uint8_t *out, size_t cap)
 /* 種別ごとのペイロード長が合うか。CMD は最短5バイト。知らない種別は false。 */
 static bool known_type(uint8_t type, size_t *fixed_len)
 {
-    switch (type) {
-    case FRAME_TELEMETRY:
-        *fixed_len = LINK_LEN_TELEMETRY;
-        return true;
-    case FRAME_EVENT:
-        *fixed_len = LINK_LEN_EVENT;
-        return true;
-    case FRAME_HEARTBEAT:
-        *fixed_len = LINK_LEN_HEARTBEAT;
-        return true;
-    case FRAME_STATE:
-        *fixed_len = LINK_LEN_STATE;
-        return true;
-    case FRAME_CMD:
-        *fixed_len = 0u; /* 可変長 */
-        return true;
-    case FRAME_ACK:
-        *fixed_len = LINK_LEN_ACK;
-        return true;
-    default:
-        return false;
+    static const struct {
+        uint8_t type;
+        size_t len;
+    } k_len[] = {
+        {(uint8_t)FRAME_TELEMETRY, LINK_LEN_TELEMETRY},
+        {(uint8_t)FRAME_EVENT, LINK_LEN_EVENT},
+        {(uint8_t)FRAME_HEARTBEAT, LINK_LEN_HEARTBEAT},
+        {(uint8_t)FRAME_STATE, LINK_LEN_STATE},
+        {(uint8_t)FRAME_CMD, 0U}, /* 可変長 */
+        {(uint8_t)FRAME_ACK, LINK_LEN_ACK},
+    };
+    bool found = false;
+    for (size_t i = 0U; i < (sizeof(k_len) / sizeof(k_len[0])); i++) {
+        if (k_len[i].type == type) {
+            *fixed_len = k_len[i].len;
+            found = true;
+        }
     }
+    return found;
 }
 
 static void unpack(uint8_t type, const uint8_t *p, size_t len, link_frame_t *out)
@@ -205,7 +206,7 @@ static void unpack(uint8_t type, const uint8_t *p, size_t len, link_frame_t *out
 link_rx_error_t link_frame_decode(const uint8_t *enc, size_t len, link_frame_t *out)
 {
     uint8_t raw[256]; /* フレームバッファ（224）より大きく取り、長すぎるものは length_mismatch にする */
-    size_t n = 0u;
+    size_t n = 0U;
     if (!cobs_decode(enc, len, raw, sizeof raw, &n)) {
         return LINK_RX_COBS_ERROR;
     }
@@ -217,10 +218,10 @@ link_rx_error_t link_frame_decode(const uint8_t *enc, size_t len, link_frame_t *
         return LINK_RX_CRC_MISMATCH;
     }
     size_t payload_len = body - LINK_HEADER_SIZE;
-    if ((size_t)raw[3] != payload_len || payload_len > LINK_PAYLOAD_MAX) {
+    if (((size_t)raw[3] != payload_len) || (payload_len > LINK_PAYLOAD_MAX)) {
         return LINK_RX_LENGTH_MISMATCH;
     }
-    size_t fixed = 0u;
+    size_t fixed = 0U;
     if (!known_type(raw[0], &fixed)) {
         return LINK_RX_UNEXPECTED_TYPE;
     }
@@ -230,6 +231,8 @@ link_rx_error_t link_frame_decode(const uint8_t *enc, size_t len, link_frame_t *
         }
     } else if (payload_len != fixed) {
         return LINK_RX_LENGTH_MISMATCH;
+    } else {
+        /* 固定長が合っている */
     }
     out->type = raw[0];
     out->seq = get_u16le(&raw[1]);

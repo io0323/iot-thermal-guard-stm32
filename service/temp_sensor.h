@@ -13,19 +13,19 @@
 
 #include "ports.h"
 
-#define TEMP_FAULT_C100 (-32768)
-#define TEMP_QUALITY_GOOD 0u
-#define TEMP_QUALITY_FAULT 2u
+#define TEMP_FAULT_C100 (-32768) /**< 故障中・ready でないときの温度 */
+#define TEMP_QUALITY_GOOD 0U /**< 品質：良好 */
+#define TEMP_QUALITY_FAULT 2U /**< 品質：故障 */
 
-#define TEMP_RAW_SHORT_BELOW 50u   /**< 生値 < 50 は短絡 */
-#define TEMP_RAW_OPEN_ABOVE 4045u  /**< 生値 > 4045 は断線 */
-#define TEMP_FAULT_RUN 3u          /**< 短絡・断線、変化率の棄却がこの回数続いたら故障 */
+#define TEMP_RAW_SHORT_BELOW 50U   /**< 生値 < 50 は短絡 */
+#define TEMP_RAW_OPEN_ABOVE 4045U  /**< 生値 > 4045 は断線 */
+#define TEMP_FAULT_RUN 3U          /**< 短絡・断線、変化率の棄却がこの回数続いたら故障 */
 #define TEMP_RATE_MAX_C100 500     /**< 前回採用した値との差がこれを超えたら棄却 */
-#define TEMP_ADC_TIMEOUT_MS 300u   /**< 新しい値がこの時間来なければ故障 */
-#define TEMP_ADC_RESTART_MS 1000u  /**< 無応答が続く間、この周期で adc->restart() */
-#define TEMP_CLAMP_HOT_C100 12000
-#define TEMP_CLAMP_COLD_C100 (-2000)
-#define TEMP_VALID_RUN_MAX 255u
+#define TEMP_ADC_TIMEOUT_MS 300U   /**< 新しい値がこの時間来なければ故障 */
+#define TEMP_ADC_RESTART_MS 1000U  /**< 無応答が続く間、この周期で adc->restart() */
+#define TEMP_CLAMP_HOT_C100 12000 /**< 表の高温側の端に丸めた温度（120.00℃） */
+#define TEMP_CLAMP_COLD_C100 (-2000) /**< 表の低温側の端に丸めた温度（−20.00℃） */
+#define TEMP_VALID_RUN_MAX 255U /**< valid_run の上限（飽和） */
 
 /** 故障の原因。 */
 typedef enum { TEMP_FAULT_NONE, TEMP_FAULT_SHORT, TEMP_FAULT_OPEN, TEMP_FAULT_RATE, TEMP_FAULT_ADC_TIMEOUT } temp_fault_t;

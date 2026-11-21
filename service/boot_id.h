@@ -9,7 +9,7 @@
 
 #include "ports.h"
 
-#define BOOT_ID_ENTROPY_MAX 64u
+#define BOOT_ID_ENTROPY_MAX 64U /**< entropy から一度に集める最大のバイト数 */
 
 /**
  * @brief boot_id を作る。

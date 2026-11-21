@@ -17,7 +17,7 @@
 
 #include "safety_fsm.h"
 
-#define DUTY_FULL_PM 1000u
+#define DUTY_FULL_PM 1000U /**< ファンの全開（‰） */
 
 /**
  * @brief auto(t)。

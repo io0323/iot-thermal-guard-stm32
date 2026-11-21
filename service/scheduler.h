@@ -21,20 +21,20 @@ typedef void (*sched_fn_t)(uint32_t now_ms);
 
 /** 表の1行。 */
 typedef struct {
-    sched_fn_t fn;
-    uint32_t period_ms;
-    uint32_t next_ms;
-    bool enabled;
+    sched_fn_t fn; /**< タスクの関数 */
+    uint32_t period_ms; /**< 周期（ms） */
+    uint32_t next_ms; /**< 次に実行する時刻 */
+    bool enabled; /**< 有効か（sched_start で有効にする） */
     uint32_t max_cycles; /**< 1回の実行時間の最大値 */
 } sched_task_t;
 
 /** スケジューラ。 */
 typedef struct {
-    sched_task_t *tasks;
-    size_t count;
-    const tick_port_t *tick;
-    uint16_t overruns;
-    uint32_t max_loop_cycles;
+    sched_task_t *tasks; /**< タスク表 */
+    size_t count; /**< タスク表の行数 */
+    const tick_port_t *tick; /**< 時間のポート */
+    uint16_t overruns; /**< オーバーランの件数（飽和） */
+    uint32_t max_loop_cycles; /**< ループ1周の実行時間の最大（cycles） */
 } sched_t;
 
 /**

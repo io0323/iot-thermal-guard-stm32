@@ -1,5 +1,7 @@
 #include "diag.h"
 
+#include <stdint.h>
+
 #include "sat.h"
 
 void diag_collect(diag_t *out, const diag_sources_t *src)
@@ -18,7 +20,7 @@ void diag_collect(diag_t *out, const diag_sources_t *src)
     out->temp_clamped = src->temp_clamped;
     out->temp_rejected = src->temp_rejected;
     out->max_loop_cycles = src->sched->max_loop_cycles;
-    for (size_t i = 0; i < DIAG_TASK_COUNT && i < src->sched->count; i++) {
+    for (size_t i = 0; (i < DIAG_TASK_COUNT) && (i < src->sched->count); i++) {
         out->max_task_cycles[i] = src->sched->tasks[i].max_cycles;
     }
     out->overruns = src->sched->overruns;

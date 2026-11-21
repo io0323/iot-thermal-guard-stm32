@@ -11,41 +11,41 @@
 
 #include "link_frame.h"
 
-#define LINK_RX_BUF_SIZE 224u  /**< 0x00 までをためるフレームバッファ */
-#define LINK_TXQ_SLOTS 16u     /**< 送信キューの枠数 */
-#define LINK_TX_PAYLOAD_MAX 16u /**< 枠に入れるペイロードの最大（作品01が送るのは最大10バイト） */
+#define LINK_RX_BUF_SIZE 224U  /**< 0x00 までをためるフレームバッファ */
+#define LINK_TXQ_SLOTS 16U     /**< 送信キューの枠数 */
+#define LINK_TX_PAYLOAD_MAX 16U /**< 枠に入れるペイロードの最大（作品01が送るのは最大10バイト） */
 
 /** 種別ごとの seq カウンタの添字（作品01が送る種別だけ）。 */
-typedef enum { LINK_SEQ_TELEMETRY, LINK_SEQ_EVENT, LINK_SEQ_HEARTBEAT, LINK_SEQ_STATE, LINK_SEQ_ACK, LINK_SEQ_COUNT } link_seq_index_t;
+enum { LINK_SEQ_TELEMETRY, LINK_SEQ_EVENT, LINK_SEQ_HEARTBEAT, LINK_SEQ_STATE, LINK_SEQ_ACK, LINK_SEQ_COUNT };
 
 /** 送信キューの枠。符号化前の種別とペイロード（seq は送り出すときに割り当てる）。 */
 typedef struct {
-    uint8_t type;
-    uint8_t len;
-    uint8_t payload[LINK_TX_PAYLOAD_MAX];
+    uint8_t type; /**< 種別 */
+    uint8_t len; /**< ペイロードの長さ */
+    uint8_t payload[LINK_TX_PAYLOAD_MAX]; /**< ペイロード（seq は送り出すときに振る） */
 } link_tx_slot_t;
 
 /** 診断値（飽和する）。 */
 typedef struct {
-    uint16_t rx_cobs_errors;
-    uint16_t rx_len_errors;
-    uint16_t rx_crc_errors;
-    uint16_t rx_unexpected;
-    uint16_t rx_overflow;
-    uint16_t tx_dropped;
+    uint16_t rx_cobs_errors; /**< COBS の復号で捨てた件数 */
+    uint16_t rx_len_errors; /**< 長さが合わずに捨てた件数 */
+    uint16_t rx_crc_errors; /**< CRC が合わずに捨てた件数 */
+    uint16_t rx_unexpected; /**< 受け付けない種別で捨てた件数 */
+    uint16_t rx_overflow; /**< 受信バッファがあふれて捨てた件数 */
+    uint16_t tx_dropped; /**< 送信キューで捨てた件数 */
 } link_counters_t;
 
 /** リンクの状態。 */
 typedef struct {
-    uint8_t rx_buf[LINK_RX_BUF_SIZE];
-    size_t rx_len;
+    uint8_t rx_buf[LINK_RX_BUF_SIZE]; /**< 受信中のフレーム（0x00 まで） */
+    size_t rx_len; /**< rx_buf に入っている数 */
     size_t rx_last_len; /**< 直前に区切ったフレームの長さ（ログ用） */
     bool rx_dropping; /**< あふれたので次の 0x00 まで捨てている */
-    link_tx_slot_t txq[LINK_TXQ_SLOTS];
-    uint8_t tx_head;
-    uint8_t tx_count;
-    uint16_t seq[LINK_SEQ_COUNT];
-    link_counters_t cnt;
+    link_tx_slot_t txq[LINK_TXQ_SLOTS]; /**< 送信キュー（リング） */
+    uint8_t tx_head; /**< 送信キューの先頭 */
+    uint8_t tx_count; /**< 送信キューに入っている数 */
+    uint16_t seq[LINK_SEQ_COUNT]; /**< 種別ごとの次の seq */
+    link_counters_t cnt; /**< 診断用のカウンタ */
 } link_t;
 
 /** link_rx_byte の結果。 */

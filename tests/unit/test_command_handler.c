@@ -47,7 +47,7 @@ static void handle(const link_cmd_t *c, uint32_t now)
     cmd_handle(&H, c, now, &ENV, &RES);
 }
 
-static void expect_ack(uint16_t ref, ack_status_t st, ack_reason_t reason, uint8_t limited, uint16_t applied)
+static void expect_ack(uint16_t ref, uint8_t st, ack_reason_t reason, uint8_t limited, uint16_t applied)
 {
     TEST_ASSERT_TRUE(RES.has_ack);
     TEST_ASSERT_EQUAL_UINT16(ref, RES.ack.cmd_ref);

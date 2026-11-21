@@ -119,6 +119,17 @@ static void test_row2_init_classifies(void)
     }
 }
 
+/* fsm_classify を直接：既定と違うしきい値で境界を確かめる（warn と crit の取り違えも検出する、#41） */
+static void test_classify_direct(void)
+{
+    TEST_ASSERT_EQUAL_INT(ST_NORMAL, fsm_classify(2999, 3000, 5000));
+    TEST_ASSERT_EQUAL_INT(ST_WARNING, fsm_classify(3000, 3000, 5000));
+    TEST_ASSERT_EQUAL_INT(ST_WARNING, fsm_classify(4999, 3000, 5000));
+    TEST_ASSERT_EQUAL_INT(ST_CRITICAL, fsm_classify(5000, 3000, 5000));
+    TEST_ASSERT_EQUAL_INT(ST_NORMAL, fsm_classify(-32767, 3000, 5000));
+    TEST_ASSERT_EQUAL_INT(ST_CRITICAL, fsm_classify(32767, 3000, 5000));
+}
+
 static void test_init_no_row_until_done(void)
 {
     fsm_input_t in = good(2500);
@@ -429,6 +440,7 @@ int main(void)
     UNITY_BEGIN();
     RUN_TEST(test_row1_init_not_ready_at_deadline);
     RUN_TEST(test_row2_init_classifies);
+    RUN_TEST(test_classify_direct);
     RUN_TEST(test_init_no_row_until_done);
     RUN_TEST(test_row3_fault_from_each_state);
     RUN_TEST(test_row3_fault_has_priority);

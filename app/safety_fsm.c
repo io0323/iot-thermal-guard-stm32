@@ -14,9 +14,12 @@
  */
 #include "safety_fsm.h"
 
-#include "event_map.h"
+#include <stdint.h>
 
-#define BIT(s) (1u << (unsigned)(s))
+#include "event_map.h"
+#include "temp_sensor.h"
+
+#define BIT(s) (1U << (unsigned)(s))
 
 typedef bool (*cond_fn_t)(const fsm_ctx_t *ctx, const fsm_input_t *in);
 typedef fsm_state_t (*next_fn_t)(const fsm_input_t *in);
@@ -31,7 +34,7 @@ typedef struct {
 /* ready で故障がないときだけ温度を使える（ready でないのは故障と同じ扱い、#23・#24） */
 static bool temp_bad(const fsm_input_t *in)
 {
-    return !in->temp.ready || in->temp.fault != TEMP_FAULT_NONE;
+    return (!in->temp.ready) || (in->temp.fault != TEMP_FAULT_NONE);
 }
 
 static int32_t t_of(const fsm_input_t *in)
@@ -60,7 +63,7 @@ static bool c_temp_fault(const fsm_ctx_t *ctx, const fsm_input_t *in)
 static bool c_recover(const fsm_ctx_t *ctx, const fsm_input_t *in)
 {
     (void)ctx;
-    return in->ack && !temp_bad(in) && in->temp.valid_run >= FSM_RECOVER_VALID_RUN;
+    return in->ack && (!temp_bad(in)) && (in->temp.valid_run >= FSM_RECOVER_VALID_RUN);
 }
 
 static bool c_crit_hold(const fsm_ctx_t *ctx, const fsm_input_t *in)
@@ -121,25 +124,16 @@ static fsm_state_t n_after_crit_ack(const fsm_input_t *in)
     return (t_of(in) >= ((int32_t)in->warn_c100 - (int32_t)in->hyst_c100)) ? ST_WARNING : ST_NORMAL;
 }
 
-static const fsm_row_t k_table[] = {
-    {1u, BIT(ST_INIT), c_init_fault, n_fault},
-    {2u, BIT(ST_INIT), c_init_done, n_classify},
-    {3u, BIT(ST_NORMAL) | BIT(ST_WARNING) | BIT(ST_CRITICAL), c_temp_fault, n_fault},
-    {4u, BIT(ST_SENSOR_FAULT), c_recover, n_classify},
-    {5u, BIT(ST_NORMAL) | BIT(ST_WARNING), c_crit_hold, n_critical},
-    {6u, BIT(ST_NORMAL), c_warn_hold, n_warning},
-    {7u, BIT(ST_WARNING), c_clear_hold, n_normal},
-    {8u, BIT(ST_CRITICAL), c_crit_ack, n_after_crit_ack},
-};
-
 void fsm_init(fsm_ctx_t *ctx)
 {
     ctx->state = ST_INIT;
-    ctx->warn_run = 0u;
-    ctx->crit_run = 0u;
-    ctx->clear_run = 0u;
+    ctx->warn_run = 0U;
+    ctx->crit_run = 0U;
+    ctx->clear_run = 0U;
 }
 
+/* 取り違えの検出：warn・crit の並びの取り違えは test_safety_fsm の test_classify_direct・test_row2_init_classifies で落ちる（open-questions #41） */
+/* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 fsm_state_t fsm_classify(int16_t t_c100, int16_t warn_c100, int16_t crit_c100)
 {
     if (t_c100 >= crit_c100) {
@@ -154,17 +148,17 @@ fsm_state_t fsm_classify(int16_t t_c100, int16_t warn_c100, int16_t crit_c100)
 static uint8_t count(uint8_t run, bool cond)
 {
     if (!cond) {
-        return 0u;
+        return 0U;
     }
-    return (run < UINT8_MAX) ? (uint8_t)(run + 1u) : run;
+    return (run < UINT8_MAX) ? (uint8_t)(run + 1U) : run;
 }
 
 static void update_counters(fsm_ctx_t *ctx, const fsm_input_t *in)
 {
     if (temp_bad(in)) {
-        ctx->warn_run = 0u;
-        ctx->crit_run = 0u;
-        ctx->clear_run = 0u;
+        ctx->warn_run = 0U;
+        ctx->crit_run = 0U;
+        ctx->clear_run = 0U;
         return;
     }
     int32_t t = t_of(in);
@@ -175,16 +169,27 @@ static void update_counters(fsm_ctx_t *ctx, const fsm_input_t *in)
 
 void fsm_step(fsm_ctx_t *ctx, const fsm_input_t *in, fsm_output_t *out)
 {
+    static const fsm_row_t k_fsm_table[] = {
+        {1U, BIT(ST_INIT), c_init_fault, n_fault},
+        {2U, BIT(ST_INIT), c_init_done, n_classify},
+        {3U, BIT(ST_NORMAL) | BIT(ST_WARNING) | BIT(ST_CRITICAL), c_temp_fault, n_fault},
+        {4U, BIT(ST_SENSOR_FAULT), c_recover, n_classify},
+        {5U, BIT(ST_NORMAL) | BIT(ST_WARNING), c_crit_hold, n_critical},
+        {6U, BIT(ST_NORMAL), c_warn_hold, n_warning},
+        {7U, BIT(ST_WARNING), c_clear_hold, n_normal},
+        {8U, BIT(ST_CRITICAL), c_crit_ack, n_after_crit_ack},
+    };
+
     update_counters(ctx, in);
     out->from = ctx->state;
     out->to = ctx->state;
     out->changed = false;
     out->event_code = (uint8_t)EV_NONE;
     out->severity = (uint8_t)SEV_INFO;
-    out->row = 9u;
-    for (uint32_t i = 0; i < (uint32_t)(sizeof k_table / sizeof k_table[0]); i++) {
-        const fsm_row_t *r = &k_table[i];
-        if ((r->states & BIT(ctx->state)) != 0u && r->cond(ctx, in)) {
+    out->row = 9U;
+    for (uint32_t i = 0; i < (uint32_t)(sizeof(k_fsm_table) / sizeof(k_fsm_table[0])); i++) {
+        const fsm_row_t *r = &k_fsm_table[i];
+        if (((r->states & BIT(ctx->state)) != 0U) && r->cond(ctx, in)) {
             fsm_state_t to = r->next(in);
             out->row = r->row;
             out->to = to;

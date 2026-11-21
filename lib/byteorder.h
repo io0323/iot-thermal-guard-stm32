@@ -14,7 +14,7 @@
  */
 static inline void put_u16le(uint8_t *p, uint16_t v)
 {
-    p[0] = (uint8_t)(v & 0xFFu);
+    p[0] = (uint8_t)(v & 0xFFU);
     p[1] = (uint8_t)(v >> 8);
 }
 
@@ -35,9 +35,9 @@ static inline void put_i16le(uint8_t *p, int16_t v)
  */
 static inline void put_u32le(uint8_t *p, uint32_t v)
 {
-    p[0] = (uint8_t)(v & 0xFFu);
-    p[1] = (uint8_t)((v >> 8) & 0xFFu);
-    p[2] = (uint8_t)((v >> 16) & 0xFFu);
+    p[0] = (uint8_t)(v & 0xFFU);
+    p[1] = (uint8_t)((v >> 8) & 0xFFU);
+    p[2] = (uint8_t)((v >> 16) & 0xFFU);
     p[3] = (uint8_t)(v >> 24);
 }
 

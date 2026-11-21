@@ -59,9 +59,9 @@ static int parse_event(const char *s, sc_event_t *ev)
     return 1;
 }
 
-static bool parse_row(char *line, sc_row_t *row, size_t lineno, char *err, size_t errlen)
+/* 1行を「,」で最大3列に分ける。戻り値は列の数（列が多ければ 0） */
+static size_t split_fields(char *line, char *f[3])
 {
-    char *f[3] = {NULL, NULL, NULL};
     size_t nf = 0u;
     char *p = line;
     f[nf++] = p;
@@ -69,12 +69,45 @@ static bool parse_row(char *line, sc_row_t *row, size_t lineno, char *err, size_
         if (*p == ',') {
             *p = '\0';
             if (nf >= 3u) {
-                set_err(err, errlen, "%zu 行目：列が多い", lineno);
-                return false;
+                return 0u;
             }
             f[nf++] = p + 1;
         }
         p++;
+    }
+    return nf;
+}
+
+static bool parse_t_ms(const char *t_s, uint32_t *t_ms)
+{
+    char *end = NULL;
+    errno = 0;
+    unsigned long t = strtoul(t_s, &end, 10);
+    if (*t_s == '\0' || *t_s == '-' || *end != '\0' || errno != 0 || t > 0xFFFFFFFFul) {
+        return false;
+    }
+    *t_ms = (uint32_t)t;
+    return true;
+}
+
+static bool parse_temp(const char *c_s, double *temp_c)
+{
+    char *end = NULL;
+    double c = strtod(c_s, &end);
+    if (*c_s == '\0' || *end != '\0') {
+        return false;
+    }
+    *temp_c = c;
+    return true;
+}
+
+static bool parse_row(char *line, sc_row_t *row, size_t lineno, char *err, size_t errlen)
+{
+    char *f[3] = {NULL, NULL, NULL};
+    size_t nf = split_fields(line, f);
+    if (nf == 0u) {
+        set_err(err, errlen, "%zu 行目：列が多い", lineno);
+        return false;
     }
     if (nf < 2u) {
         set_err(err, errlen, "%zu 行目：t_ms,temp_c が要る", lineno);
@@ -84,26 +117,51 @@ static bool parse_row(char *line, sc_row_t *row, size_t lineno, char *err, size_
     char *c_s = trim(f[1]);
     static char empty[1] = "";
     char *e_s = (nf == 3u) ? trim(f[2]) : empty;
-    char *end = NULL;
-    errno = 0;
-    unsigned long t = strtoul(t_s, &end, 10);
-    if (*t_s == '\0' || *t_s == '-' || *end != '\0' || errno != 0 || t > 0xFFFFFFFFul) {
+    if (!parse_t_ms(t_s, &row->t_ms)) {
         set_err(err, errlen, "%zu 行目：t_ms が不正: %s", lineno, t_s);
         return false;
     }
-    end = NULL;
-    double c = strtod(c_s, &end);
-    if (*c_s == '\0' || *end != '\0') {
+    if (!parse_temp(c_s, &row->temp_c)) {
         set_err(err, errlen, "%zu 行目：temp_c が不正（全行に必須）: %s", lineno, c_s);
         return false;
     }
-    int r = parse_event(e_s, &row->ev);
-    if (r != 0) {
+    if (parse_event(e_s, &row->ev) != 0) {
         set_err(err, errlen, "%zu 行目：知らない event: %s", lineno, e_s);
         return false;
     }
-    row->t_ms = (uint32_t)t;
-    row->temp_c = c;
+    return true;
+}
+
+/* *p から1行を buf に写して前後の空白を除く。*p は次の行の先頭に進む。長すぎれば NULL */
+static char *next_line(const char **p, char buf[LINE_MAX_LEN])
+{
+    const char *nl = strchr(*p, '\n');
+    size_t len = (nl != NULL) ? (size_t)(nl - *p) : strlen(*p);
+    if (len >= LINE_MAX_LEN) {
+        return NULL;
+    }
+    memcpy(buf, *p, len);
+    buf[len] = '\0';
+    *p = (nl != NULL) ? nl + 1 : *p + len;
+    return trim(buf);
+}
+
+/* データの1行を足す（行数の上限、列の解析、t_ms が増える順） */
+static bool add_row(scenario_t *sc, char *line, size_t lineno, char *err, size_t errlen)
+{
+    if (sc->n >= SCENARIO_MAX_ROWS) {
+        set_err(err, errlen, "行が多すぎる（最大 %u）", SCENARIO_MAX_ROWS);
+        return false;
+    }
+    sc_row_t row;
+    if (!parse_row(line, &row, lineno, err, errlen)) {
+        return false;
+    }
+    if (sc->n > 0u && row.t_ms <= sc->rows[sc->n - 1u].t_ms) {
+        set_err(err, errlen, "%zu 行目：t_ms が増えていない", lineno);
+        return false;
+    }
+    sc->rows[sc->n++] = row;
     return true;
 }
 
@@ -114,39 +172,21 @@ bool scenario_parse(scenario_t *sc, const char *text, char *err, size_t errlen)
     bool first = true;
     const char *p = text;
     while (*p != '\0') {
-        const char *nl = strchr(p, '\n');
-        size_t len = (nl != NULL) ? (size_t)(nl - p) : strlen(p);
+        char buf[LINE_MAX_LEN];
         lineno++;
-        if (len >= LINE_MAX_LEN) {
+        char *line = next_line(&p, buf);
+        if (line == NULL) {
             set_err(err, errlen, "%zu 行目：長すぎる", lineno);
             return false;
         }
-        char buf[LINE_MAX_LEN];
-        memcpy(buf, p, len);
-        buf[len] = '\0';
-        p = (nl != NULL) ? nl + 1 : p + len;
-        char *line = trim(buf);
         if (line[0] == '\0' || line[0] == '#') {
             continue;
         }
-        if (first && strncmp(line, "t_ms", 4) == 0) {
-            first = false;
-            continue; /* ヘッダ */
-        }
+        bool header = first && strncmp(line, "t_ms", 4) == 0;
         first = false;
-        if (sc->n >= SCENARIO_MAX_ROWS) {
-            set_err(err, errlen, "行が多すぎる（最大 %u）", SCENARIO_MAX_ROWS);
+        if (!header && !add_row(sc, line, lineno, err, errlen)) {
             return false;
         }
-        sc_row_t row;
-        if (!parse_row(line, &row, lineno, err, errlen)) {
-            return false;
-        }
-        if (sc->n > 0u && row.t_ms <= sc->rows[sc->n - 1u].t_ms) {
-            set_err(err, errlen, "%zu 行目：t_ms が増えていない", lineno);
-            return false;
-        }
-        sc->rows[sc->n++] = row;
     }
     if (sc->n == 0u) {
         set_err(err, errlen, "行がない");
@@ -201,41 +241,42 @@ void scenario_player_init(scenario_player_t *p, const scenario_t *sc)
     p->hang = false;
 }
 
+static void apply_event(scenario_player_t *p, sc_event_t ev)
+{
+    switch (ev) {
+    case SC_EV_SENSOR_OPEN:
+        p->open = true;
+        p->shorted = false;
+        break;
+    case SC_EV_SENSOR_SHORT:
+        p->shorted = true;
+        p->open = false;
+        break;
+    case SC_EV_SENSOR_OK:
+        p->open = false;
+        p->shorted = false;
+        break;
+    case SC_EV_ADC_STALL:
+    case SC_EV_ADC_RESUME:
+        p->stalled = (ev == SC_EV_ADC_STALL);
+        break;
+    case SC_EV_BUTTON_DOWN:
+    case SC_EV_BUTTON_UP:
+        p->button = (ev == SC_EV_BUTTON_DOWN);
+        break;
+    case SC_EV_HANG:
+        p->hang = true;
+        break;
+    case SC_EV_NONE:
+    default:
+        break;
+    }
+}
+
 void scenario_player_advance(scenario_player_t *p, uint32_t t_ms)
 {
     while (p->next_ev < p->sc->n && p->sc->rows[p->next_ev].t_ms <= t_ms) {
-        switch (p->sc->rows[p->next_ev].ev) {
-        case SC_EV_SENSOR_OPEN:
-            p->open = true;
-            p->shorted = false;
-            break;
-        case SC_EV_SENSOR_SHORT:
-            p->shorted = true;
-            p->open = false;
-            break;
-        case SC_EV_SENSOR_OK:
-            p->open = false;
-            p->shorted = false;
-            break;
-        case SC_EV_ADC_STALL:
-            p->stalled = true;
-            break;
-        case SC_EV_ADC_RESUME:
-            p->stalled = false;
-            break;
-        case SC_EV_BUTTON_DOWN:
-            p->button = true;
-            break;
-        case SC_EV_BUTTON_UP:
-            p->button = false;
-            break;
-        case SC_EV_HANG:
-            p->hang = true;
-            break;
-        case SC_EV_NONE:
-        default:
-            break;
-        }
+        apply_event(p, p->sc->rows[p->next_ev].ev);
         p->next_ev++;
     }
 }
