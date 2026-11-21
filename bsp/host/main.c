@@ -1,11 +1,11 @@
 /*
  * ホスト版の入口（詳細設計書 第8章）。
  *
- *   mcu_c_01 [--temp <℃>] [--log <file.jsonl>] [UART_PATH]
+ *   mcu_c_01 [--temp <℃>] [--scenario <file.csv>] [--log <file.jsonl>] [UART_PATH]
  *
  * UART_PATH がなければ環境変数 IOTSPEC_UART_PATH。どちらもなければ終了コード 2。
  * SIGTERM・SIGINT、または相手が閉じた（read が 0／EIO）ら、診断値をログに書いて終了コード 0。
- * SIGUSR1 で診断値をログに書く。--scenario は P2。
+ * SIGUSR1 で診断値をログに書く。--scenario は --temp より優先し、不正な CSV は終了コード 2。
  */
 #include <signal.h>
 #include <stdio.h>
@@ -43,12 +43,13 @@ static void install_signals(void)
 
 static void usage(void)
 {
-    fputs("usage: mcu_c_01 [--temp <degC>] [--log <file.jsonl>] [UART_PATH]\n", stderr);
+    fputs("usage: mcu_c_01 [--temp <degC>] [--scenario <file.csv>] [--log <file.jsonl>] [UART_PATH]\n", stderr);
 }
 
 typedef struct {
     const char *uart_path;
     const char *log_path;
+    const char *scenario_path;
     double temp_c;
 } options_t;
 
@@ -56,6 +57,7 @@ static int parse_args(int argc, char **argv, options_t *o)
 {
     o->uart_path = NULL;
     o->log_path = NULL;
+    o->scenario_path = NULL;
     o->temp_c = 25.0;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--temp") == 0 && (i + 1) < argc) {
@@ -67,9 +69,8 @@ static int parse_args(int argc, char **argv, options_t *o)
             }
         } else if (strcmp(argv[i], "--log") == 0 && (i + 1) < argc) {
             o->log_path = argv[++i];
-        } else if (strcmp(argv[i], "--scenario") == 0) {
-            fputs("mcu_c_01: --scenario は未実装（P2）\n", stderr);
-            return -1;
+        } else if (strcmp(argv[i], "--scenario") == 0 && (i + 1) < argc) {
+            o->scenario_path = argv[++i];
         } else if (argv[i][0] == '-') {
             fprintf(stderr, "mcu_c_01: 知らない引数: %s\n", argv[i]);
             return -1;
@@ -86,6 +87,8 @@ static int parse_args(int argc, char **argv, options_t *o)
     return 0;
 }
 
+static scenario_t s_scenario;
+
 int main(int argc, char **argv)
 {
     options_t opt;
@@ -98,6 +101,13 @@ int main(int argc, char **argv)
         usage();
         return 2;
     }
+    if (opt.scenario_path != NULL) {
+        char err[160];
+        if (!scenario_load(&s_scenario, opt.scenario_path, err, sizeof err)) {
+            fprintf(stderr, "mcu_c_01: シナリオ: %s\n", err);
+            return 2;
+        }
+    }
     if (!host_log_open(opt.log_path)) {
         fprintf(stderr, "mcu_c_01: ログを開けない: %s\n", opt.log_path);
         return 2;
@@ -109,6 +119,9 @@ int main(int argc, char **argv)
     }
     install_signals();
     bsp_host_set_temp(opt.temp_c);
+    if (opt.scenario_path != NULL) {
+        bsp_host_set_scenario(&s_scenario); /* --temp より優先 */
+    }
 
     ports_t ports;
     bsp_init(&ports);

@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "ports.h"
+#include "scenario.h"
 
 /** bsp_host_pump の結果。 */
 typedef enum { HOST_IO_OK, HOST_IO_EOF, HOST_IO_ERROR } host_io_t;
@@ -21,10 +22,16 @@ typedef enum { HOST_IO_OK, HOST_IO_EOF, HOST_IO_ERROR } host_io_t;
 bool bsp_host_open_uart(const char *path);
 
 /**
- * @brief ADC に渡す生値を温度から決める（NTC 10kΩ・B=3435、10kΩ プルアップ、12ビット）。
+ * @brief ADC に渡す生値を温度から決める（ntc_model_raw、open-questions #20）。
  * @param temp_c 温度（℃）
  */
 void bsp_host_set_temp(double temp_c);
+
+/**
+ * @brief シナリオを再生する（--temp より優先）。時刻は起動からの uptime_ms。
+ * @param sc シナリオ（再生中は有効なままにしておく）
+ */
+void bsp_host_set_scenario(const scenario_t *sc);
 
 /**
  * @brief ADC に渡している生値。
