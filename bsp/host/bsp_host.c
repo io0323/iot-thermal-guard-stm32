@@ -2,7 +2,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <math.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +10,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "ntc_model.h"
 #include "ring_buffer.h"
+#include "scenario.h"
 
 #define RX_RING_SIZE 256u
 #define TX_BUF_SIZE 1024u
@@ -24,6 +25,8 @@ static size_t s_tx_len;
 static uint64_t s_start_ms;
 static uint16_t s_adc_raw = 2048u;
 static uint16_t s_fan_pm;
+static scenario_player_t s_player;
+static bool s_use_scenario;
 
 static uint64_t mono_ns(void)
 {
@@ -43,9 +46,14 @@ static uint32_t host_cycles(void)
     return (uint32_t)mono_ns(); /* ns。差だけを使う */
 }
 
-/* ---- adc：呼ばれるたび（100ms ごと）に1値 ---- */
+/* ---- adc：呼ばれるたび（100ms ごと）に1値。シナリオがあればその時刻の値（adc_stall 中は値なし） ---- */
 static bool host_take_sample(uint16_t *raw)
 {
+    if (s_use_scenario) {
+        uint32_t now = host_now_ms();
+        scenario_player_advance(&s_player, now);
+        return scenario_player_sample(&s_player, now, raw);
+    }
     *raw = s_adc_raw;
     return true;
 }
@@ -194,19 +202,13 @@ bool bsp_host_open_uart(const char *path)
 
 void bsp_host_set_temp(double temp_c)
 {
-    const double r_pull = 10000.0;
-    const double r25 = 10000.0;
-    const double beta = 3435.0;
-    double t_k = temp_c + 273.15;
-    double r_ntc = r25 * exp(beta * ((1.0 / t_k) - (1.0 / 298.15)));
-    double raw = 4096.0 * r_ntc / (r_ntc + r_pull);
-    if (raw < 0.0) {
-        raw = 0.0;
-    }
-    if (raw > 4095.0) {
-        raw = 4095.0;
-    }
-    s_adc_raw = (uint16_t)floor(raw);
+    s_adc_raw = ntc_model_raw(temp_c); /* round(4095 × R ÷ (R + 10kΩ))、#20 */
+}
+
+void bsp_host_set_scenario(const scenario_t *sc)
+{
+    scenario_player_init(&s_player, sc);
+    s_use_scenario = true;
 }
 
 uint16_t bsp_host_adc_raw(void)

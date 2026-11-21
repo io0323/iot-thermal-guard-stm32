@@ -1,8 +1,9 @@
 /*
  * タスクの登録と配線（詳細設計書 第2章）。
  *
- * P1 の範囲：
- * - INIT は「temp_sensor が ready になるまで」。その間はフレームを送らず、CMD は捨てて数え、HEARTBEAT は受け付ける
+ * - INIT は temp_sensor が ready になる12サンプル目（約1.1秒）で抜ける。起動から2000ms までに ready にならなければ
+ *   遷移表の行1で SENSOR_FAULT に入る（open-questions #26）。INIT 中に故障しても早くは抜けない。
+ *   INIT の間はフレームを送らず、CMD は捨てて数え、HEARTBEAT は受け付ける
  * - INIT を抜けたら STATE → EVENT BOOT（from・to は 0、CR-2）→ STATE_CHANGED の順に送る
  * - task_ui（ボタン・LED・ブザー）と task_health（生存報告・ウォッチドッグ）は表の行だけ置き、P3 で実装する。
  *   INIT 中の LED・ブザーの点灯とウォッチドッグのリフレッシュも P3
@@ -51,6 +52,7 @@ static uint16_t s_fan_pm;
 static uint32_t s_boot_id;
 static reset_reason_t s_reset_reason;
 static uint16_t s_reset_count;
+static uint32_t s_boot_ms;
 
 static bool in_init(void)
 {
@@ -131,8 +133,9 @@ static void task_control(uint32_t now)
     fsm_input_t in;
     fsm_output_t o;
     temp_get(&in.temp);
-    in.init_done = in.temp.ready; /* P1 の INIT は「temp_sensor が ready になるまで」 */
-    in.ack = false;               /* ボタンは P3 */
+    /* INIT を終える時点：ready になった、または起動から2000ms（#26） */
+    in.init_done = in.temp.ready || (int32_t)(now - (s_boot_ms + FW_INIT_MAX_MS)) >= 0;
+    in.ack = false; /* ボタンは P3 */
     in.warn_c100 = s_cmd.warn_c100;
     in.crit_c100 = s_cmd.crit_c100;
     in.hyst_c100 = s_cmd.hyst_c100;
@@ -284,7 +287,8 @@ void firmware_init(const ports_t *ports, const fw_observer_t *obs)
     }
 
     s_state = ST_INIT;
-    temp_init();
+    s_boot_ms = now;
+    temp_init(s_p->adc, now);
     fsm_init(&s_fsm);
     link_init(&s_link);
     upstream_init(&s_up, now);
@@ -322,6 +326,7 @@ void firmware_diag(fw_diag_t *out)
     out->cmd_dropped_init = s_cmd.cmd_dropped_init;
     out->cmd_duplicates = s_cmd.cmd_duplicates;
     out->tx_dropped = s_link.cnt.tx_dropped;
+    temp_counters(&out->temp_clamped, &out->temp_rejected);
     out->max_loop_cycles = s_sched.max_loop_cycles;
     for (size_t i = 0; i < FW_TASK_COUNT; i++) {
         out->max_task_cycles[i] = s_tasks[i].max_cycles;

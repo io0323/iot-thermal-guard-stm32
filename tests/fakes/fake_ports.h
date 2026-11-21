@@ -20,6 +20,7 @@ typedef struct {
     uint32_t cycles_step; /**< cycles() を呼ぶたびに進める量 */
     uint16_t adc_raw;
     bool adc_ready;
+    uint32_t adc_restarts; /**< adc->restart() を呼んだ回数 */
     uint16_t pwm_pm;
     uint32_t pwm_writes;
     uint8_t rx[FAKE_UART_CAP];

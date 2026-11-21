@@ -91,7 +91,7 @@ void bsp_init(ports_t *out);   /* bsp_host と bsp_stm32f4 がそれぞれ実装
 1. `bsp_init()` でポートを用意する。ファンはこの時点で100%
 2. リセット要因とリセット回数を読む（診断値に残す）
 3. entropy を集めて boot\_id を作る（第7章）
-4. INIT：LED を 赤→黄→緑 の順に100msずつ点灯し、ブザーを100ms鳴らす。並行して温度サンプルを集め、フィルタが満たされるまで待つ（最短1.3秒、最长2秒）。この間はフレームを送らず、受信した CMD は捨てて数える。HEARTBEAT は受け付け、上位監視を改める
+4. INIT：LED を 赤→黄→緑 の順に100msずつ点灯し、ブザーを100ms鳴らす。並行して温度サンプルを集め、フィルタが満たされるまで待つ（ready になる12サンプル目（約1.1秒）で抜ける。最長2秒で、それまでに ready にならなければ SENSOR_FAULT）。この間はフレームを送らず、受信した CMD は捨てて数える。HEARTBEAT は受け付け、上位監視を改める
 5. INIT を抜ける：STATE → EVENT BOOT → 遷移の EVENT（STATE\_CHANGED または SENSOR\_FAULT）の順に送る。以降は周期送信と指令処理を始める
 
 ### タスクと予算
@@ -121,7 +121,7 @@ void bsp_init(ports_t *out);   /* bsp_host と bsp_stm32f4 がそれぞれ実装
 | 25℃ | 10.0kΩ | 2048 |
 | 120℃（測定範囲の上端） | 0.62kΩ | 238 |
 
-値は B 定数の式による概算で、変換表は `tools/gen_ntc_table.py` が同じ式から生成する。実機フェーズで実測して表を置き換えられるように、表は生成物として扱い手で編集しない。
+値は B 定数の式による概算で、変換表は `tools/gen_ntc_table.py` が同じ式から生成する。実機フェーズで実測して表を置き換えられるように、表は生成物として扱い手で編集しない。生値の式は round(4095 × R ÷ (R + 10kΩ))（ホスト版の温度→生値も同じ式）。補間と移動平均の整数は四捨五入（負の値は 0 を中心に対称）。
 
 ### 取得
 
@@ -192,7 +192,7 @@ stateDiagram-v2
 
 - 分類(t)：t ≧ crit なら CRITICAL、t ≧ warn なら WARNING、それ以外は NORMAL。INIT の出口と故障からの復帰では、フィルタがすでに1.2秒分の値を持っているので継続判定を待たない
 - 承認はボタンからの1回限りの入力で、当たった行がなくてもそのステップで消費する（保留しない）
-- 連続回数のカウンタは条件が崩れたら 0 に戻し、状態が変わったときも 0 に戻す。しきい値の変更は次のステップから効き、カウンタはそのまま
+- 連続回数のカウンタ（t ≧ warn、t ≧ crit、t < warn−hyst の3つ）は状態に関係なく毎ステップ数え、条件が崩れたときと温度が故障のときだけ 0 に戻す。状態が変わっても戻さない（NORMAL → WARNING で crit のカウントがやり直しになると、急な昇温で CRITICAL が最大1秒遅れるため）。しきい値の変更は次のステップから効き、カウンタはそのまま
 - 既定値：warn 45.00℃、crit 60.00℃、hyst 3.00℃（`config/thresholds.h`、ビルド時に変更可）
 
 ```c
@@ -402,8 +402,8 @@ Claude Code には7フェーズに分けて渡す。P1 で契約テストが通�
 | フェーズ | 範囲 | 完了条件（すべて満たして PR） |
 | --- | --- | --- |
 | P1 ホスト版の骨組み・UART・契約テスト | リポジトリの雛形、CMake プリセット（host-debug）、submodule（Unity・iot-common-spec v0.2.1。ports は関数ポインタの構造体なので P1 のフェイクは手書き。CMock は必要になったフェーズで入れる）、lib（cobs・crc16・crc32・ring\_buffer）、link・upstream・scheduler・report、command\_handler、cooling\_policy、safety\_fsm の仮版（INIT → 分類だけ）、temp\_sensor の仮版（固定温度をそのまま返す）、boot\_id（ホスト）、bsp\_host（pty・実時間・`--temp`・ログ・終了）、ゴールデンのテストベクタ、CI の host ジョブ、CLAUDE.md・docs/open-questions.md・最小の README | ① 警告ゼロでビルドし CTest が全件合格 ② ゴールデン全件で符号化・復号・壊れたフレームのテストが合格 ③ 契約テストの7チェックが手元（macOS）と CI の両方で合格 ④ ASan・UBSan の指摘ゼロ ⑤ command\_handler の表の全検証条件、重複キャッシュ、上位監視の3状態、送信キューの満杯に単体テストがある |
-| P2 温度計測と状態遷移 | gen\_ntc\_table.py と変換表、median・moving\_avg、temp\_sensor の本版、safety\_fsm の本版（遷移表の全行）、event\_map、INIT の本版（フィルタ充填・2秒で故障）、SET\_THRESHOLD の検証、sim\_harness と CSV、ホスト版の `--scenario`（温度のみ） | ① 遷移表の全行と「どの行にも当たらない」を状態ごとにテスト ② 変換表の両端・範囲外・故障の境界（49・50・4045・4046）をテスト ③ シナリオで NFR-01（crit を超えてからファン100% まで 2.5秒以内）と故障の検出が合格 ④ P1 の全条件を維持 |
-| P3 ボタン・警報・ヘルス | button、alarm、health と疑似ウォッチドッグ（execv）、リセット要因・回数（ホスト）、diag、シナリオの event（ボタン・センサー・ADC・hang）、ホスト版を pty 越しに動かす小さな pytest（iotspec のフレーム実装を使う） | ① シナリオで承認の流れ（1回目消音、2回目承認、条件未達の承認は無効）、長押し3秒、SENSOR\_FAULT からの復帰が合格 ② pytest で hang → 再起動 → 新しい boot\_id で STATE→BOOT、seq が 0 から ③ P2 までの全条件を維持 |
+| P2 温度計測と状態遷移 | gen\_ntc\_table.py と変換表、median・moving\_avg、temp\_sensor の本版、safety\_fsm の本版（遷移表の全行）、event\_map、INIT の本版（フィルタ充填・2秒で故障）、SET\_THRESHOLD の検証、sim\_harness と CSV、ホスト版の `--scenario`（温度と、センサー・ADC の event） | ① 遷移表の全行と「どの行にも当たらない」を状態ごとにテスト ② 変換表の両端・範囲外・故障の境界（49・50・4045・4046）をテスト ③ シナリオで NFR-01（crit を超えてからファン100% まで 2.5秒以内）と故障の検出が合格 ④ P1 の全条件を維持 |
+| P3 ボタン・警報・ヘルス | button、alarm、health と疑似ウォッチドッグ（execv）、リセット要因・回数（ホスト）、diag、シナリオの event（ボタン・hang）、ホスト版を pty 越しに動かす小さな pytest（iotspec のフレーム実装を使う） | ① シナリオで承認の流れ（1回目消音、2回目承認、条件未達の承認は無効）、長押し3秒、SENSOR\_FAULT からの復帰が合格 ② pytest で hang → 再起動 → 新しい boot\_id で STATE→BOOT、seq が 0 から ③ P2 までの全条件を維持 |
 | P4 品質ゲート | host-coverage、gcovr、cppcheck（MISRA）、clang-tidy、lizard、Doxygen、違反の逸脱を ADR に記録、CI の quality ジョブ | ① app・service の行カバレッジ 80% 以上 ② 検査できる範囲で MISRA 違反ゼロ（逸脱は ADR 付き） ③ 循環的複雑度 10 以下 ④ 公開関数の Doxygen 警告ゼロ ⑤ 全ジョブが CI で緑 |
 | P5 STM32 ターゲット版 | ツールチェーンの版の固定、cmsis\_device\_f4・stm32f4xx\_hal\_driver（LL）の submodule、起動コードとリンカスクリプト、bsp\_stm32f4（84MHz、SysTick、TIM2→ADC1→DMA2、TIM3 PWM、USART2、EXTI、IWDG、RCC\_CSR、UID、entropy、DWT）、pinmap.h、スタックペインティング、check\_size.py、CI の target ジョブ | ① target-debug・target-release が警告ゼロでビルド ② Flash 64KB・RAM 16KB 以内を CI で確認 ③ ISR が「フラグとバッファだけ」であることをレビュー観点表で確認 ④ ホスト側の全テストと契約テストを維持（実機での動作確認はしない） |
 | P6 Renode | 最初に試行：Renode の UART を pty に出して `iotspec-contract --uart` でつなぐ。その後 nucleo\_f401re.repl（stm32f4.repl をもとにメモリを F401 に合わせ、STM32\_ADC を足す）、target-renode、Robot のテスト、CI の renode ジョブ | ① Robot のテスト（起動・周期送信・CMD/ACK・ウォッチドッグ・PWM）が CI で合格 ② 試行の結果（Renode で契約テストが通るか、通らないなら理由）を ADR に記録 ③ ADC の開始方法が実機と違うことを README とテスト仕様書に明記 |
