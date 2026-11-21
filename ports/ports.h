@@ -72,6 +72,22 @@ typedef struct {
     size_t (*gather)(uint8_t *buf, size_t cap); /**< boot_id の材料を集める。戻り値は集めたバイト数 */
 } entropy_port_t;
 
+/** bsp が持つ診断値（open-questions #45〜#47）。ホスト版はすべて 0。 */
+typedef struct {
+    uint16_t uart_ring_dropped; /**< 受信リングが満杯で捨てたバイト数（rx_overflow とは別） */
+    uint16_t uart_errors; /**< UART の受信エラー（ORE・FE・NE・PE）の件数 */
+    uint16_t stack_peak; /**< スタックの最大使用量（バイト） */
+} bsp_diag_t;
+
+/** bsp の診断値の読み出し。 */
+typedef struct {
+    /**
+     * @brief bsp の診断値を読む。
+     * @param out 診断値
+     */
+    void (*read)(bsp_diag_t *out);
+} bsp_diag_port_t;
+
 /** ポート一式。 */
 typedef struct {
     const tick_port_t *tick; /**< 時間 */
@@ -82,6 +98,7 @@ typedef struct {
     const wdt_port_t *wdt; /**< ウォッチドッグ */
     const reset_port_t *reset; /**< リセット要因と回数 */
     const entropy_port_t *entropy; /**< boot_id の材料 */
+    const bsp_diag_port_t *bsp_diag; /**< bsp の診断値 */
 } ports_t;
 
 /**

@@ -426,5 +426,6 @@ void firmware_diag(fw_diag_t *out)
         .cmd_duplicates = s_cmd.cmd_duplicates,
     };
     temp_counters(&src.temp_clamped, &src.temp_rejected);
+    s_p->bsp_diag->read(&src.bsp);
     diag_collect(out, &src);
 }

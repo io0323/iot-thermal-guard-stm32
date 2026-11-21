@@ -14,7 +14,7 @@ static void test_collect_copies_all(void)
         tasks[i].max_cycles = (uint32_t)(100u + i);
     }
     sched_t s = {.tasks = tasks, .count = DIAG_TASK_COUNT, .tick = NULL, .overruns = 7u, .max_loop_cycles = 999u};
-    diag_sources_t src = {RESET_WATCHDOG, 3u, &lc, &s, 8u, 9u, 10u, 11u};
+    diag_sources_t src = {RESET_WATCHDOG, 3u, &lc, &s, 8u, 9u, 10u, 11u, {12u, 13u, 1400u}};
     diag_t d;
     diag_collect(&d, &src);
     TEST_ASSERT_EQUAL_UINT8(RESET_WATCHDOG, d.reset_reason);
@@ -32,6 +32,9 @@ static void test_collect_copies_all(void)
     TEST_ASSERT_EQUAL_UINT32(999u, d.max_loop_cycles);
     TEST_ASSERT_EQUAL_UINT32(105u, d.max_task_cycles[5]);
     TEST_ASSERT_EQUAL_UINT16(7u, d.overruns);
+    TEST_ASSERT_EQUAL_UINT16(12u, d.uart_ring_dropped); /* bsp の値は rx_overflow と別の項目（#45） */
+    TEST_ASSERT_EQUAL_UINT16(13u, d.uart_errors);
+    TEST_ASSERT_EQUAL_UINT16(1400u, d.stack_peak);
 }
 
 static void test_counters_saturate(void)
@@ -45,7 +48,7 @@ static void test_counters_saturate(void)
     link_counters_t lc = {UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX};
     sched_task_t tasks[1] = {{NULL, 1u, 0u, false, UINT32_MAX}};
     sched_t s = {.tasks = tasks, .count = 1u, .tick = NULL, .overruns = UINT16_MAX, .max_loop_cycles = UINT32_MAX};
-    diag_sources_t src = {RESET_POWER_ON, UINT16_MAX, &lc, &s, UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX};
+    diag_sources_t src = {RESET_POWER_ON, UINT16_MAX, &lc, &s, UINT16_MAX, UINT16_MAX, UINT16_MAX, UINT16_MAX, {0u, 0u, 0u}};
     diag_t d;
     diag_collect(&d, &src);
     TEST_ASSERT_EQUAL_UINT16(UINT16_MAX, d.rx_crc_errors);
