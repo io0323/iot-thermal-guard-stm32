@@ -47,6 +47,14 @@ iotspec-contract --role mcu-c-01 --target-cmd "./build/host/mcu_c_01 {uart}" --j
 tools/target-docker.sh   # target-debug・target-release、tools/check_size.py・stack_report.py・isr_report.py
 ```
 
+Renode（エミュレーター）のテストと、Renode での契約テスト（どちらも `antmicro/renode:1.16.1` のコンテナ。ADR-0006）：
+
+```sh
+cmake --preset target-renode && cmake --build --preset target-renode   # ADC_SOFTWARE_START=1（実機と ADC の開始方法が違う）
+tools/renode-test.sh                                                   # Robot Framework（tests/renode/）
+iotspec-contract --role mcu-c-01 --target-cmd "tools/renode-contract.sh {uart}"
+```
+
 プリセット名・出力先・実行ファイル名（`build/host/mcu_c_01`）は契約テストが前提にしているので変えない。
 
 ## ブランチと PR

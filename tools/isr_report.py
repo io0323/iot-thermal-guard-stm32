@@ -17,6 +17,8 @@ import subprocess
 import sys
 
 ISRS = ("SysTick_Handler", "DMA2_Stream0_IRQHandler", "USART2_IRQHandler")
+# target-renode（ADC_SOFTWARE_START=1）だけにある ISR。.elf にあるときだけ数える（ADR-0006、open-questions #53）
+OPTIONAL_ISRS = ("TIM2_IRQHandler",)
 SYSCLK_MHZ = 84
 ENTRY_EXIT_CYCLES = 22
 CYCLES_PER_INSN = 3
@@ -99,7 +101,8 @@ def main():
     elf = sys.argv[1]
     bad = False
     print(f"{'ISR':<26}{'命令':>6}{'サイクルの目安':>14}{'μs の目安':>10}  呼ぶ関数・ループ")
-    for isr in ISRS:
+    present = [s for s in OPTIONAL_ISRS if disasm(elf, s)]
+    for isr in ISRS + tuple(present):
         seen = set()
         n, loops = walk(elf, isr, seen)
         cycles = ENTRY_EXIT_CYCLES + n * CYCLES_PER_INSN

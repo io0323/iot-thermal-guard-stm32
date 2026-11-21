@@ -51,6 +51,21 @@ target_link_options(mcu_c_01 PRIVATE
 set_target_properties(mcu_c_01 PROPERTIES LINK_DEPENDS ${TG_LINKER_SCRIPT})
 tg_warnings(mcu_c_01)
 
+# target-renode だけ：Renode の ADC は外部トリガーを持たないので、TIM2 の更新割り込みでソフトウェア開始する（ADR-0006）
+option(TG_ADC_SOFTWARE_START "Renode 用の ADC の開始方法（実機とは違う）" OFF)
+option(TG_RENODE_TEST_HOOKS "Renode のテスト用の変数（g_renode_hang、ウォッチドッグのテスト）" OFF)
+if(TG_ADC_SOFTWARE_START)
+    target_compile_definitions(mcu_c_01 PRIVATE ADC_SOFTWARE_START=1)
+endif()
+if(TG_RENODE_TEST_HOOKS)
+    target_compile_definitions(mcu_c_01 PRIVATE RENODE_TEST_HOOKS=1)
+endif()
+# スタックの塗りの余白（#54）。値を変えるのは、余白で stack_peak が変わらないことを比べるとき（tools/renode-stack-margin.sh）だけ
+set(TG_STACK_PAINT_MARGIN "" CACHE STRING "スタックの塗りの余白（バイト）。空なら bsp_stack.c の既定（64）")
+if(NOT TG_STACK_PAINT_MARGIN STREQUAL "")
+    target_compile_definitions(mcu_c_01 PRIVATE STACK_PAINT_MARGIN=${TG_STACK_PAINT_MARGIN}U)
+endif()
+
 add_custom_command(TARGET mcu_c_01 POST_BUILD
     COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:mcu_c_01> ${CMAKE_BINARY_DIR}/mcu_c_01.bin
     COMMAND ${CMAKE_SIZE} -A -x $<TARGET_FILE:mcu_c_01>

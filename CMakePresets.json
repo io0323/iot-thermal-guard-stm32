@@ -57,6 +57,22 @@
         "TG_SANITIZE": "OFF",
         "BUILD_TESTING": "OFF"
       }
+    },
+    {
+      "name": "target-renode",
+      "displayName": "Renode 用（target-release＋ADC_SOFTWARE_START=1＋テスト用の変数。実機とは ADC の開始方法が違う）",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/target-renode",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "TG_TARGET": "ON",
+        "TG_SANITIZE": "OFF",
+        "BUILD_TESTING": "OFF",
+        "TG_ADC_SOFTWARE_START": "ON",
+        "TG_RENODE_TEST_HOOKS": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -75,6 +91,10 @@
     {
       "name": "target-release",
       "configurePreset": "target-release"
+    },
+    {
+      "name": "target-renode",
+      "configurePreset": "target-renode"
     }
   ],
   "testPresets": [

@@ -5,6 +5,9 @@
  *   循環バッファ20語に転送する。半分転送・全転送の割り込み（どちらも100ms ごと）は「確定した半分」の番号を
  *   残すだけで、平均（(sum + 5) / 10、四捨五入）は take_sample（タスク側）で行う
  * - ADC：ADCCLK = PCLK2 ÷ 4 = 21MHz（上限 36MHz）、12ビット、サンプリング 480 サイクル（約23μs）
+ * - ADC_SOFTWARE_START=1（target-renode だけ）：Renode の ADC は外部トリガーを持たないので、TRGO の代わりに
+ *   TIM2 の更新割り込みで ADC をソフトウェア開始する。**実機とは経路が違う**（実機のビルドにはこの ISR がない）。
+ *   DMA の転送と、確定した半分の平均は共通（詳細設計書 第3章、ADR-0006）
  * - 材料：TIM2 を動かす前に、ADC をソフトウェア開始で使い、内部温度（ADC1_IN18）と VREFINT（ADC1_IN17）を
  *   32回ずつ読んだ値の下位4ビット、DWT のサイクル数、UID（96ビット）、RCC_CSR を集めておく
  */
@@ -30,6 +33,10 @@
 #define HALF_NONE 0xFFU
 #define ENTROPY_READS 32U
 #define TS_START_CYCLES 840U /* 内部温度センサーの起動待ち（10μs）を 84MHz のサイクル数で */
+
+#ifndef ADC_SOFTWARE_START
+#define ADC_SOFTWARE_START 0
+#endif
 
 #define ENTROPY_BYTES ((2U * (ENTROPY_READS / 2U)) + 4U + 12U + 4U)
 
@@ -144,11 +151,16 @@ static void adc_stream_init(void)
     LL_GPIO_SetPinMode(PIN_TEMP_PORT, PIN_TEMP_PIN, LL_GPIO_MODE_ANALOG);
     LL_ADC_SetChannelSamplingTime(ADC1, PIN_TEMP_ADC_CHANNEL, LL_ADC_SAMPLINGTIME_480CYCLES);
     LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, PIN_TEMP_ADC_CHANNEL);
-    LL_ADC_REG_SetTriggerSource(ADC1, LL_ADC_REG_TRIG_EXT_TIM2_TRGO);
     LL_ADC_REG_SetDMATransfer(ADC1, LL_ADC_REG_DMA_TRANSFER_UNLIMITED);
     LL_ADC_ClearFlag_OVR(ADC1);
+#if ADC_SOFTWARE_START
+    LL_ADC_REG_SetTriggerSource(ADC1, LL_ADC_REG_TRIG_SOFTWARE); /* Renode 用：TIM2_IRQHandler が開始する */
+    LL_ADC_Enable(ADC1);
+#else
+    LL_ADC_REG_SetTriggerSource(ADC1, LL_ADC_REG_TRIG_EXT_TIM2_TRGO);
     LL_ADC_Enable(ADC1);
     LL_ADC_REG_StartConversionExtTrig(ADC1, LL_ADC_REG_TRIG_EXT_RISING);
+#endif
 }
 
 static void tim2_init(void)
@@ -158,6 +170,12 @@ static void tim2_init(void)
     LL_TIM_SetAutoReload(TIM2, TIM2_ARR);
     LL_TIM_SetTriggerOutput(TIM2, LL_TIM_TRGO_UPDATE);
     LL_TIM_GenerateEvent_UPDATE(TIM2);
+#if ADC_SOFTWARE_START
+    LL_TIM_ClearFlag_UPDATE(TIM2);
+    LL_TIM_EnableIT_UPDATE(TIM2);
+    NVIC_SetPriority(TIM2_IRQn, BSP_PRIO_TIM2_RENODE);
+    NVIC_EnableIRQ(TIM2_IRQn);
+#endif
     LL_TIM_EnableCounter(TIM2);
 }
 
@@ -173,6 +191,9 @@ void bsp_adc_start(void)
 static void adc_restart(void)
 {
     NVIC_DisableIRQ(DMA2_Stream0_IRQn);
+#if ADC_SOFTWARE_START
+    NVIC_DisableIRQ(TIM2_IRQn);
+#endif
     LL_TIM_DisableCounter(TIM2);
     LL_ADC_Disable(ADC1);
     LL_DMA_DisableStream(DMA2, LL_DMA_STREAM_0);
@@ -202,6 +223,18 @@ void DMA2_Stream0_IRQHandler(void)
         LL_DMA_ClearFlag_TE0(DMA2); /* ストリームは止まる。値が来なくなり、300ms で temp_sensor が restart() を呼ぶ */
     }
 }
+
+#if ADC_SOFTWARE_START
+/* ISR（target-renode だけ）：更新フラグを消して、ADC の変換をソフトウェアで1回開始するだけ（実機は TRGO で起動） */
+void TIM2_IRQHandler(void);
+void TIM2_IRQHandler(void)
+{
+    if (LL_TIM_IsActiveFlag_UPDATE(TIM2) != 0U) {
+        LL_TIM_ClearFlag_UPDATE(TIM2);
+        LL_ADC_REG_StartConversionSWStart(ADC1);
+    }
+}
+#endif
 
 /* 100ms ごとに task_sense が呼ぶ。確定した半分の10語を四捨五入で平均する */
 static bool adc_take_sample(uint16_t *raw)

@@ -16,6 +16,8 @@
 #define BSP_PRIO_SYSTICK 1U
 #define BSP_PRIO_DMA2_STREAM0 2U
 #define BSP_PRIO_USART2 3U
+/* Renode 用ビルド（ADC_SOFTWARE_START=1）だけにある TIM2 の更新割り込み（open-questions #53：DMA2_Stream0 と同じ 2） */
+#define BSP_PRIO_TIM2_RENODE 2U
 
 /** 割り込みを禁止し、それまでの PRIMASK を返す（複数ワードの読み出しを守る短い禁止区間）。 */
 static inline uint32_t bsp_irq_save(void)

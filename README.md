@@ -4,14 +4,14 @@
 温度を監視してファンを制御し、異常を知らせます。上位（作品03）とは UART でやり取りし、
 フレームは [iot-common-spec](https://github.com/io0323/iot-common-spec) v0.2.1 の第7章に従います。device_id は `mcu-c-01` です。
 
-いま動くのは PC 上のホスト版（`build/host/mcu_c_01`）です。STM32 向けのターゲット版（`build/target-*/mcu_c_01.elf`）もビルドできますが、**実機では未確認**です（下の「ターゲット版」）。
+いま動くのは PC 上のホスト版（`build/host/mcu_c_01`）です。STM32 向けのターゲット版（`build/target-*/mcu_c_01.elf`）もビルドでき、Renode（エミュレーター）で動かして確かめていますが、**実機では未確認**です（下の「ターゲット版」「Renode」）。
 実機は使わず、単体テスト・ゴールデン・仮想時間のシナリオ・契約テストで確かめます。
 設計は [docs/design/](docs/design/)、未決の論点と決定は [docs/open-questions.md](docs/open-questions.md) にあります。
 
 ## 必要なもの
 
 - CMake 3.25 以上、Ninja、C11 のコンパイラ（clang または gcc）、Python 3
-- 品質ゲートとターゲット版のビルドを手元で流すには Docker（下の「品質ゲート」「ターゲット版」）
+- 品質ゲート・ターゲット版のビルド・Renode を手元で流すには Docker（下の「品質ゲート」「ターゲット版」「Renode」）
 - 契約テストと再起動の結合テストを動かすには [uv](https://docs.astral.sh/uv/)（結合テストは Python 3.12 を使う。`.python-version` で指定しているので uv が用意する）
 
 ## ビルドとテスト
@@ -174,10 +174,37 @@ cmake --preset target-debug && cmake --build --preset target-debug       # -Og -
 
 | プリセット | Flash | RAM | スタックの最悪の深さ |
 | --- | --- | --- | --- |
-| target-release（`-Os -g`） | 14,704 / 65,536 バイト（22.4%） | 5,684 / 16,384 バイト（34.7%） | 1,560 / 4,096 バイト（38.1%） |
-| target-debug（`-Og -g3`） | 14,192 / 65,536 バイト（21.7%） | 5,684 / 16,384 バイト（34.7%） | 1,504 / 4,096 バイト（36.7%） |
+| target-release（`-Os -g`） | 14,708 / 65,536 バイト（22.4%） | 5,684 / 16,384 バイト（34.7%） | 1,560 / 4,096 バイト（38.1%） |
+| target-debug（`-Og -g3`） | 14,196 / 65,536 バイト（21.7%） | 5,684 / 16,384 バイト（34.7%） | 1,504 / 4,096 バイト（36.7%） |
 
 クロック・ピン・割り込みの優先度は [ADR-0005](docs/adr/ADR-0005-clock-pins-peripherals.md) と `bsp/stm32f4/pinmap.h` にあります。
+
+## Renode（エミュレーター、実機では未確認）
+
+ターゲット版を Renode（`antmicro/renode:1.16.1`、digest で固定）のコンテナで動かして確かめます。詳細は [ADR-0006](docs/adr/ADR-0006-renode.md) と [renode/README.md](renode/README.md)。
+
+```sh
+cmake --preset target-renode && cmake --build --preset target-renode   # build/target-renode/mcu_c_01.elf
+tools/renode-test.sh                                                   # Robot Framework のテスト（tests/renode/）
+tools/renode-contract.sh --measure 20                                  # 契約テスト用の設定での仮想時間と実時間の比
+iotspec-contract --role mcu-c-01 --target-cmd "tools/renode-contract.sh {uart}"   # 契約テスト（7チェック）
+```
+
+**`target-renode` は実機と ADC の開始方法が違います。** Renode の ADC は外部トリガー（TIM2 の TRGO）を持たないので、TIM2 の更新割り込みから ADC をソフトウェアで開始します（`ADC_SOFTWARE_START=1`）。DMA の転送と平均は実機と同じコードです。ウォッチドッグのテスト用の変数（`g_renode_hang`）も `target-renode` だけにあります。
+
+Renode の `STM32DMA` は循環と半分転送を持たないので、それを足したモデル（`renode/peripherals/STM32DMA_Circular.cs`、Renode v1.16.1 の `STM32DMA.cs` をもとにした MIT のファイル）を起動時に読み込んで置き換えています。Renode 本体は変えていません。
+
+| 確かめていること（CI の `renode` ジョブ） | 結果 |
+| --- | --- |
+| 起動の順序（STATE → BOOT） | 合格 |
+| TELEMETRY・HEARTBEAT が仮想時間で1秒ごと | 合格 |
+| DMA の循環・半分転送の割り込みが100ms ごとに交互に来る | 合格 |
+| SET_FAN_OVERRIDE 400 の ACK と TIM3 の CCR1 = 1344 | 合格 |
+| 25℃ → 65℃ で CRITICAL、CCR1 = 3360 | 合格 |
+| ループを止めると IWDG がリセットし、STATE → BOOT を送り直す | 合格 |
+| 契約テスト（Renode、7チェック） | 合格 |
+
+Renode で確かめていないこと（実機フェーズで確認）：ISR の実行時間とジッター（Renode は命令数の近似）、実機の ADC の TRGO の経路、PWM の波形、UART のボーレートの誤差、IWDG の時間の個体差、リセット要因（Renode の RCC_CSR は固定値）、boot_id の雑音。範囲の表は ADR-0006 にあります。
 
 ## 依存しているもの（submodule）
 
@@ -197,8 +224,8 @@ cmake --preset target-debug && cmake --build --preset target-debug       # -Og -
 | P2 | 温度計測と状態遷移 | 完了 |
 | P3 | ボタン・警報・ヘルス | 完了 |
 | P4 | 品質ゲート | 完了 |
-| P5 | STM32 ターゲット版 | 実装済み（PR 中、実機では未確認） |
-| P6 | Renode | 未着手 |
+| P5 | STM32 ターゲット版 | 完了（実機では未確認） |
+| P6 | Renode | 実装済み（PR 中） |
 | P7 | 書類の仕上げ | 未着手 |
 
 ### ボタンと警報

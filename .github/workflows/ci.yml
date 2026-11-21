@@ -98,3 +98,51 @@ jobs:
           name: target-report
           path: build/target-report
           if-no-files-found: warn
+
+  renode:
+    # Renode（P6）。target-renode（ADC_SOFTWARE_START=1、実機とは ADC の開始方法が違う）を、循環・半分転送の DMA を
+    # 足したプラットフォーム定義で動かす（ADR-0006）。Renode は antmicro/renode:1.16.1（digest で固定）のコンテナ。
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: ツール（apt）
+        run: sudo apt-get update && sudo apt-get install -y ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
+
+      - name: target-renode
+        run: cmake --preset target-renode && cmake --build --preset target-renode
+
+      - name: target-renode の ISR（TIM2 の更新割り込みは target-renode だけ）
+        run: mkdir -p build/renode-test && python3 tools/isr_report.py build/target-renode/mcu_c_01.elf | tee build/renode-test/isr.txt
+        shell: bash
+
+      - name: Renode のテスト（Robot Framework、Renode の既定の時間の設定）
+        run: tools/renode-test.sh build/renode-test
+
+      - name: スタックの塗りの余白（64 バイト）で stack_peak が変わらないこと（#54）
+        run: tools/renode-stack-margin.sh build/renode-test/stack-margin
+
+      - name: 仮想時間と実時間の比（契約テストの許容範囲 0.7〜9 倍の外なら、契約テストより先に失敗させる）
+        shell: bash  # -eo pipefail（tee の前の失敗を落とさない）
+        run: tools/renode-contract.sh --measure 20 | tee build/renode-test/time-ratio.txt
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: 契約テストキット
+        run: uv tool install "iotspec @ git+https://github.com/io0323/iot-common-spec@v0.2.1"
+
+      - name: 契約テスト（Renode）
+        run: >-
+          RENODE_LOG=build/renode-test/contract-renode.log RENODE_RELAY_LOG=build/renode-test/contract-relay.log
+          iotspec-contract --role mcu-c-01 --target-cmd "tools/renode-contract.sh {uart}"
+          --junit build/renode-test/contract-renode.xml
+
+      - name: Renode のテストと契約テストの結果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: renode-report
+          path: build/renode-test
+          if-no-files-found: warn
