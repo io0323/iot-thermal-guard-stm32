@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  host:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: ツール
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: ビルド（host-debug、ASan・UBSan）
+        run: cmake --preset host-debug && cmake --build --preset host-debug
+
+      - name: CTest（単体・ゴールデン）
+        run: ctest --preset host-debug --output-on-failure
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: 契約テストキット
+        run: uv tool install "iotspec @ git+https://github.com/io0323/iot-common-spec@v0.2.1"
+
+      - name: 契約テスト（MQTT ブローカーは使わない）
+        run: >-
+          iotspec-contract --role mcu-c-01
+          --target-cmd "./build/host/mcu_c_01 --log contract-log.jsonl {uart}"
+          --junit contract.xml
+
+      - name: 契約テストの結果とログ
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-mcu-c-01
+          path: |
+            contract.xml
+            contract-log.jsonl
+          if-no-files-found: warn
