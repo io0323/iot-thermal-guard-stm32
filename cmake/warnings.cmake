@@ -14,8 +14,12 @@ set(TG_WARNING_FLAGS
     -fno-common
 )
 
-# ホスト版は ARM と char の符号を揃える
-set(TG_HOST_FLAGS -funsigned-char)
+# ホスト版は ARM と char の符号を揃える（ターゲット版は arm-none-eabi の既定で unsigned char）
+if(TG_TARGET)
+    set(TG_HOST_FLAGS)
+else()
+    set(TG_HOST_FLAGS -funsigned-char)
+endif()
 
 function(tg_warnings target)
     target_compile_options(${target} PRIVATE ${TG_WARNING_FLAGS} ${TG_HOST_FLAGS})
