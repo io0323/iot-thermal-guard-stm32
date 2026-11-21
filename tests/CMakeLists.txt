@@ -77,3 +77,7 @@ target_link_libraries(test_scenarios PRIVATE unity tg_sim_harness tg_config)
 tg_warnings(test_scenarios)
 add_test(NAME test_scenarios COMMAND test_scenarios)
 target_compile_definitions(test_scenarios PRIVATE SCENARIO_DIR="${CMAKE_CURRENT_SOURCE_DIR}/scenario/data")
+
+# bsp/stm32f4 のうち STM32 のヘッダに依存しない純粋な関数（リセット要因の判定、#51）をホストで確かめる
+tg_unit_test(test_reset_decode unit/test_reset_decode.c ${CMAKE_SOURCE_DIR}/bsp/stm32f4/reset_decode.c)
+target_include_directories(test_reset_decode PRIVATE ${CMAKE_SOURCE_DIR}/bsp/stm32f4)

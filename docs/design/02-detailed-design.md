@@ -306,7 +306,7 @@ auto(t)= t < 35.00℃ → 0、 35.00〜45.00℃ → (t − 3500) × 400 ÷ 1000�
 
 ### リセット要因と回数
 
-- 実機：RCC\_CSR のフラグ（PORRST、PINRST、IWDGRST、SFTRST、BORRST、LPWRRST）を読んで `reset_reason_t` にし、RMVF で消す。複数立っていれば IWDG → ソフトウェア → BOR → 低電力 → 電源投入 → ピン の順に優先する（電源投入ではピンも立つため）
+- 実機：RCC\_CSR のフラグ（PORRST、PINRST、IWDGRST、SFTRST、BORRST、LPWRRST）を読んで `reset_reason_t` にし、RMVF で消す。複数立っていれば IWDG → ソフトウェア → 電源投入 → BOR → 低電力 → ピン の順に優先する（電源投入では BORRSTF とピンも立つため。どのリセットでもピンは立つので最後に見る）
 - リセット回数は `.noinit` 領域にマジック値と一緒に置き、電源投入では 0 から数え直す
 - ホスト：疑似ウォッチドッグが500ms リフレッシュされないと、環境変数 `MCU_C_01_RESET_REASON=watchdog` と回数を付けて自分自身を `execv()` で起動し直す。開いている UART のパスは引数でそのまま渡す
 - リセット要因は CR-2 が決まるまで UART では送らず、診断値とホスト版のログに残す
