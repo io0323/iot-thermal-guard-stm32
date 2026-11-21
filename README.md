@@ -1,18 +1,138 @@
 # iot-thermal-guard-stm32
 
-作品01「高機能センサー制御・安全監視デバイス」のファームウェアです（C11、STM32F401RE、ベアメタル）。
-温度を監視してファンを制御し、異常を知らせます。上位（作品03）とは UART でやり取りし、
-フレームは [iot-common-spec](https://github.com/io0323/iot-common-spec) v0.2.1 の第7章に従います。device_id は `mcu-c-01` です。
+[![ci](https://github.com/io0323/iot-thermal-guard-stm32/actions/workflows/ci.yml/badge.svg)](https://github.com/io0323/iot-thermal-guard-stm32/actions/workflows/ci.yml)
 
-いま動くのは PC 上のホスト版（`build/host/mcu_c_01`）です。STM32 向けのターゲット版（`build/target-*/mcu_c_01.elf`）もビルドでき、Renode（エミュレーター）で動かして確かめていますが、**実機では未確認**です（下の「ターゲット版」「Renode」）。
-実機は使わず、単体テスト・ゴールデン・仮想時間のシナリオ・契約テストで確かめます。
-設計は [docs/design/](docs/design/)、未決の論点と決定は [docs/open-questions.md](docs/open-questions.md) にあります。
+温度を監視してファンを回し、異常を LED・ブザー・UART で知らせる、STM32F401RE 向けのベアメタルのファームウェアです（C11、作品01「高機能センサー制御・安全監視デバイス」、device_id `mcu-c-01`）。
+上位（作品03）がいなくても、単独で安全側（ファン全開・警報）に倒します。上位とは [iot-common-spec](https://github.com/io0323/iot-common-spec) v0.2.1 の UART フレームでやり取りします。
+**確かめた範囲**：PC で動くホスト版（単体テスト・ゴールデン・仮想時間のシナリオ・契約テスト・pytest）と、Renode（エミュレーター）の上のターゲット版（Robot Framework・契約テスト）。すべて CI で動きます。
+**実機（Nucleo-F401RE）ではまだ確かめていません。** 実機でしか確かめられないことは [docs/hardware-phase.md](docs/hardware-phase.md) に手順として残しています。
+
+## 構成
+
+5層（app・service・lib・ports・bsp）で、ハードに触るのは bsp だけです。ports は関数ポインタの構造体で、起動時に bsp が中身を詰めて上位の層に渡します。app・service・lib・main はホスト版とターゲット版で同じソースで、bsp だけを差し替えます（[基本設計書 第4章](docs/design/01-requirements-basic-design.md)、[詳細設計書 第1・2章](docs/design/02-detailed-design.md)）。
+
+```mermaid
+flowchart TB
+    up["上位（作品03）<br/>CI では iotspec-contract が代役"]
+    subgraph fw["共通のソース（ホスト版・ターゲット版）"]
+        main["main：firmware.c<br/>タスクの登録と配線"]
+        app["app：safety_fsm・cooling_policy・alarm<br/>command_handler・event_map"]
+        service["service：temp_sensor・button・link・upstream<br/>report・scheduler・health・boot_id・diag"]
+        lib["lib：ring_buffer・cobs・crc16・crc32<br/>median・moving_avg・ntc_table・tick"]
+        ports["ports：ports.h<br/>（関数ポインタの構造体だけ）"]
+    end
+    subgraph bsp["bsp（差し替え）"]
+        host["bsp/host：pty・実時間・シナリオ CSV<br/>JSON Lines のログ・疑似ウォッチドッグ"]
+        stm["bsp/stm32f4：LL・割り込み・起動コード<br/>TIM2→ADC1→DMA2・TIM3 PWM・USART2・IWDG"]
+    end
+    main --> app
+    main --> service
+    app --> service
+    service --> lib
+    app --> ports
+    service --> ports
+    host -. 実装 .-> ports
+    stm -. 実装 .-> ports
+    host <-->|"UART（pty、raw・115200・8N1）"| up
+    stm <-->|"USART2（115200・8N1）"| up
+```
+
+依存は app → service → lib、app・service → ports の一方向だけです。CMake のターゲットを層ごとに分け、STM32 のヘッダを include できるのは `bsp/stm32f4/` だけにしています（品質ゲートの「禁止項目」で検査）。
+
+## 状態遷移
+
+5つの状態を、`{現状態, 条件, 次状態}` の静的な表で上から順に評価します（`app/safety_fsm.c`）。CRITICAL と SENSOR_FAULT は温度が下がっても自動では戻らず、ボタンでの承認を待ちます。センサー故障はどの条件よりも先に評価します。図は [詳細設計書 第4章](docs/design/02-detailed-design.md) と同じものです。
+
+```mermaid
+stateDiagram-v2
+    [*] --> INIT
+    INIT --> NORMAL: 完了（温度で分類）
+    INIT --> SENSOR_FAULT: ADC 異常
+    NORMAL --> WARNING: ≥ warn が1秒
+    WARNING --> NORMAL: < warn−hyst が1秒
+    NORMAL --> CRITICAL: ≥ crit が1秒
+    WARNING --> CRITICAL: ≥ crit が1秒
+    CRITICAL --> WARNING: 承認かつ < crit−hyst
+    CRITICAL --> NORMAL: 承認かつ < warn−hyst
+    NORMAL --> SENSOR_FAULT: センサー故障
+    WARNING --> SENSOR_FAULT: センサー故障
+    CRITICAL --> SENSOR_FAULT: センサー故障
+    SENSOR_FAULT --> NORMAL: 承認＋正常10回（温度で分類）
+```
+
+既定のしきい値は warn 45.00℃・crit 60.00℃・hyst 3.00℃（`config/thresholds.h`）。ファンは NORMAL で 35〜45℃ に 0→40%、WARNING 70%、CRITICAL・SENSOR_FAULT 100% です。
+
+## 検証の全体像
+
+要件（FR-01〜14・NFR-01〜10）とテストの対応は [docs/test-spec.md](docs/test-spec.md) にあり、CI の quality ジョブが `tools/check_traceability.py` で表の抜けと、実在しないテスト名を検査します。
+
+| 段 | 何を確かめるか | 件数 | CI のジョブ |
+| --- | --- | --- | --- |
+| 単体 | lib・service・app の各モジュール（Unity、ポートはフェイク）。遷移表の全行、指令の全検証条件、重複キャッシュ、COBS・CRC | 24 実行ファイル・211 件 | host |
+| ゴールデン | iot-common-spec v0.2.1 の `uart/golden/` 全件の符号化・復号・壊れたフレーム | 5 件 | host |
+| 仮想時間のシナリオ | firmware 全体を 1ms 刻みの仮想時間で CSV から動かす（NFR-01、故障、承認、長押し、hang） | 26 件 | host |
+| 契約 | `iotspec-contract --role mcu-c-01` の7チェック（ホスト版） | 7 件 | host |
+| pytest | ホスト版を pty 越しに動かし、hang → 疑似ウォッチドッグの再起動 → 新しい boot_id | 5 件 | host |
+| 品質ゲート | カバレッジ 80% 以上・MISRA（cppcheck）・clang-tidy・複雑度 10 以下・Doxygen・禁止項目、トレーサビリティ | 6 ゲート＋1 | quality |
+| ターゲット | target-debug・target-release を警告ゼロでビルド、Flash・RAM・スタック・ISR の検査 | 4 検査 × 2 | target |
+| Renode | target-renode を Renode で動かす（Robot Framework）と、Renode の上での契約テスト | 7 件＋7 チェック | renode |
+
+単体・ゴールデン・シナリオは CTest の27の実行ファイルで、件数は `RUN_TEST` の数です。
+
+## 主な数値
+
+どれもテストや CI の出力にある値です。CI の値は main（`a188fd6`）の [run 44911885413](https://github.com/io0323/iot-thermal-guard-stm32/actions/runs/44911885413) のものです。
+
+| 項目 | 値 | 基準 | 出典 |
+| --- | --- | --- | --- |
+| NFR-01：crit を超えてからファン100% まで | 1,500 ms（1℃/s）・1,500 ms（10℃/s）・1,525 ms（40℃/s） | 2,500 ms 以内 | `./build/host/tests/test_scenarios` の出力（仮想時間）、PR #2 |
+| hang からの再起動（ホスト版、実時間） | hang から新しい boot_id の STATE まで 1,504 ms | 400〜2,600 ms（open-questions #34） | pytest の出力（CI の host ジョブ）、PR #3 |
+| hang からの再起動（仮想時間） | hang 3,000 ms → 再起動 3,400 ms → STATE・BOOT 4,500 ms | — | `test_scenarios` の出力 |
+| Flash（target-release） | 14,708 / 65,536 バイト（22.4%） | 64KB 以内（NFR-04） | CI の target ジョブ（`tools/check_size.py`） |
+| RAM（target-release、スタック 4KB を含む） | 5,684 / 16,384 バイト（34.7%） | 16KB 以内（NFR-04） | 同上 |
+| スタックの最悪の深さ（見積もり） | 1,560 / 4,096 バイト（38.1%） | 4KB 以内 | CI の target ジョブ（`tools/stack_report.py`） |
+| スタックの最大使用量（Renode で実行、塗りの残り） | 1,204 バイト | 見積もり以下 | CI の renode ジョブ（Robot の「スタック」、`tools/renode-stack-margin.sh`） |
+| ISR の実行時間（見積もり） | 最悪 2.65 μs（USART2） | 各 20 μs 以内（NFR-03） | [docs/isr-review.md](docs/isr-review.md)（`tools/isr_report.py`） |
+| 行カバレッジ（app・service） | 93%（app 94%、service 92%） | 80% 以上（NFR-08） | CI の quality ジョブ（gcovr）、PR #4（93.4%） |
+| Renode の仮想時間と実時間の比（契約テストの設定） | 0.88〜0.98 倍 | 0.7〜9 倍 | [ADR-0006](docs/adr/ADR-0006-renode.md)、CI の renode ジョブ（`tools/renode-contract.sh --measure 20`） |
+
+実機での値（NFR-01〜03 の実測、IWDG の時間、スタックの実測）はまだありません（[docs/hardware-phase.md](docs/hardware-phase.md)）。
+
+## 書類の地図
+
+| 場所 | 内容 |
+| --- | --- |
+| [docs/design/](docs/design/) | 要件定義・基本設計書、詳細設計書、共通仕様の変更案（Claude Docs の原本の写し。指示がない限り編集しない） |
+| [docs/adr/](docs/adr/README.md) | 設計判断の記録（ADR-0001〜0006：回路の前提、MISRA の逸脱、テストの基盤、ツールチェーン、クロック・ピン、Renode） |
+| [docs/test-spec.md](docs/test-spec.md) | テスト仕様書。FR・NFR とテストの対応表、受け入れ基準 |
+| [docs/hardware-phase.md](docs/hardware-phase.md) | 実機フェーズの手順書。実機でしか確かめられないことを1項目ずつ |
+| [docs/isr-review.md](docs/isr-review.md) | ISR のレビュー表と実行時間の見積もり |
+| [docs/open-questions.md](docs/open-questions.md) | 未決の論点と決定の記録（仕様にないことは、ここに書いて人が決めた） |
+| [docs/prompts/](docs/prompts/README.md) | フェーズごとに Claude Code に渡したプロンプト（P1〜P7） |
+| [CHANGELOG.md](CHANGELOG.md) | 版ごとの変更（v0.1.0） |
+| [CLAUDE.md](CLAUDE.md) | Claude Code が守る決まり（正とする書類の順、コードの決まり、コマンド） |
+
+## 開発の進め方
+
+設計書（[docs/design/](docs/design/)）と [CLAUDE.md](CLAUDE.md) をもとに、Claude Code にフェーズごと（P1〜P7、[詳細設計書 第10章](docs/design/02-detailed-design.md)）のプロンプトで実装させました。プロンプトは [docs/prompts/](docs/prompts/README.md) にあります。
+
+- 各フェーズは main から `phase/pN-…` を切り、完了条件をすべて満たしてから PR にし、人がレビューしてマージしました
+- 仕様や設計書にないことは Claude Code が実装で決めず、[docs/open-questions.md](docs/open-questions.md) に選択肢と推奨を書いて作業を止め、人が決めました（「決定」の列。#1〜#7 は未決のまま：共通仕様の CR-1〜5 と実機フェーズ）
+- 設計の誤りが見つかったときは、人が設計書の原本を直し、リポジトリの写しを同じように直すよう指示しました
 
 ## 必要なもの
 
-- CMake 3.25 以上、Ninja、C11 のコンパイラ（clang または gcc）、Python 3
-- 品質ゲート・ターゲット版のビルド・Renode を手元で流すには Docker（下の「品質ゲート」「ターゲット版」「Renode」）
+- CMake 3.25 以上、Ninja、C11 のコンパイラ（clang または gcc）、Python 3、git
 - 契約テストと再起動の結合テストを動かすには [uv](https://docs.astral.sh/uv/)（結合テストは Python 3.12 を使う。`.python-version` で指定しているので uv が用意する）
+- 品質ゲート・ターゲット版のビルド・Renode を手元で流すには Docker（下の「品質ゲート」「ターゲット版」「Renode」）
+
+Ubuntu 24.04 での準備の例：
+
+```sh
+sudo apt-get update && sudo apt-get install -y git cmake ninja-build gcc python3 curl
+curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH="$HOME/.local/bin:$PATH"
+git clone --recurse-submodules https://github.com/io0323/iot-thermal-guard-stm32.git && cd iot-thermal-guard-stm32
+```
 
 ## ビルドとテスト
 
@@ -170,7 +290,7 @@ cmake --preset target-debug && cmake --build --preset target-debug       # -Og -
 | スタック | 可変長配列・再帰がない。最悪の深さ（main からの最深の経路＋割り込みの入れ子＋例外の枠）が 4KB に収まる | `tools/stack_report.py` |
 | ISR | ループがない。命令数からの見積もりで各 20μs 以内（NFR-03） | `tools/isr_report.py` |
 
-使用量（P5 の時点、CI の結果）：
+使用量（main の CI の target ジョブ。P6 で #54 の修正を入れたあとの値で、P5 の PR #5 の値より 4 バイト大きい）：
 
 | プリセット | Flash | RAM | スタックの最悪の深さ |
 | --- | --- | --- | --- |
@@ -204,7 +324,13 @@ Renode の `STM32DMA` は循環と半分転送を持たないので、それを�
 | ループを止めると IWDG がリセットし、STATE → BOOT を送り直す | 合格 |
 | 契約テスト（Renode、7チェック） | 合格 |
 
-Renode で確かめていないこと（実機フェーズで確認）：ISR の実行時間とジッター（Renode は命令数の近似）、実機の ADC の TRGO の経路、PWM の波形、UART のボーレートの誤差、IWDG の時間の個体差、リセット要因（Renode の RCC_CSR は固定値）、boot_id の雑音。範囲の表は ADR-0006 にあります。
+### 仮想時間の比が 0.7 を下回って契約テストが落ちたとき
+
+契約テストは実時間で待つので、Renode の仮想時間と実時間の比が 0.7〜9 倍の間にないと成り立ちません（上位断の10秒を14秒以内に判定する必要がある）。CI は契約テストの前に `tools/renode-contract.sh --measure 20` で比を測り、範囲の外なら「仮想時間と実時間の比」の段で失敗します。CI では 0.88〜0.98 倍で、下限に近いです。
+
+CI のマシンが遅くなって 0.7 を下回ったら、Renode の `PerformanceInMips` を 10 から下げます（1命令あたりに進む仮想時間が増えるので、比が上がる。ADR-0006 の表では MIPS 10 で 0.45 倍、2 で 0.79 倍）。試すときは環境変数 `RENODE_MIPS`（`tools/renode-contract.sh` の既定は 10）で渡し、`RENODE_MIPS=5 tools/renode-contract.sh --measure 20` のように比を測り直します。CI で変えるなら `tools/renode-contract.sh` の既定を変え、ADR-0006 の「仮想時間と実時間」の表に書き足します。Robot のテストは仮想時間で判定するので、この設定に左右されません（#56）。
+
+Renode で確かめていないこと（実機フェーズで確認）：ISR の実行時間とジッター（Renode は命令数の近似）、実機の ADC の TRGO の経路、PWM の波形、UART のボーレートの誤差、IWDG の時間の個体差、リセット要因（Renode の RCC_CSR は固定値）、boot_id の雑音。範囲の表は ADR-0006 に、実機で確かめる手順は [docs/hardware-phase.md](docs/hardware-phase.md) にあります。
 
 ## 依存しているもの（submodule）
 
@@ -225,8 +351,8 @@ Renode で確かめていないこと（実機フェーズで確認）：ISR の
 | P3 | ボタン・警報・ヘルス | 完了 |
 | P4 | 品質ゲート | 完了 |
 | P5 | STM32 ターゲット版 | 完了（実機では未確認） |
-| P6 | Renode | 実装済み（PR 中） |
-| P7 | 書類の仕上げ | 未着手 |
+| P6 | Renode | 完了（実機では未確認） |
+| P7 | 書類の仕上げ | 実装済み（PR 中） |
 
 ### ボタンと警報
 

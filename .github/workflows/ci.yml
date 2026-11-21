@@ -68,6 +68,10 @@ jobs:
       - name: 品質ゲート（カバレッジ・cppcheck・clang-tidy・lizard・Doxygen・禁止項目）
         run: tools/quality.sh build/quality
 
+      - name: トレーサビリティ（FR・NFR と docs/test-spec.md、P7）
+        if: always()
+        run: python3 tools/check_traceability.py
+
       - name: 品質ゲートの報告
         if: always()
         uses: actions/upload-artifact@v4
