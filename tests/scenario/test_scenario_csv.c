@@ -1,4 +1,4 @@
-/* シナリオ CSV（open-questions #28）：ヘッダ、注釈、CRLF、補間、event、不正な CSV、生値のモデル */
+/* シナリオ CSV（open-questions #28・#33）：ヘッダ、注釈、CRLF、補間、event（button・hang を含む）、不正な CSV、生値のモデル */
 #include <stdio.h>
 #include <string.h>
 
@@ -124,7 +124,9 @@ static void test_all_data_files_load(void)
     const char *files[] = {"nfr01_ramp_1cps.csv", "nfr01_ramp_10cps.csv", "nfr01_ramp_40cps.csv",
                            "alarm_cycle.csv",     "warning_hysteresis.csv", "fault_open.csv",
                            "fault_short.csv",     "fault_adc_stall.csv",  "jump_25c.csv",
-                           "init_adc_stall.csv",  "constant_25c.csv"};
+                           "init_adc_stall.csv",  "constant_25c.csv",       "ack_flow.csv",
+                           "ack_not_met.csv",     "fault_recover_early_ack.csv", "fault_recover_ack.csv",
+                           "long_press.csv",      "long_press_critical.csv", "hang_reboot.csv"};
     for (size_t i = 0; i < sizeof files / sizeof files[0]; i++) {
         char path[512];
         (void)snprintf(path, sizeof path, "%s/%s", SCENARIO_DIR, files[i]);

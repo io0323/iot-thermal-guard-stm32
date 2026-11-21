@@ -1,0 +1,10 @@
+t_ms,temp_c,event
+# SENSOR_FAULT から：valid_run が10以上になってから、1回目の短押しで消音、2回目で承認して分類先（NORMAL）に戻る
+0,25,
+5000,25,sensor_open
+8000,25,sensor_ok
+11000,25,button_down
+11200,25,button_up
+12000,25,button_down
+12200,25,button_up
+15000,25,

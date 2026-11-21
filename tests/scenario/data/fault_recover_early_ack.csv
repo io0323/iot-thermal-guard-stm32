@@ -1,0 +1,10 @@
+t_ms,temp_c,event
+# SENSOR_FAULT から：原因が消えた直後（valid_run が10になる前）の承認は無効。承認は持ち越さない
+0,25,
+5000,25,sensor_open
+8000,25,sensor_ok
+8100,25,button_down
+8200,25,button_up
+8300,25,button_down
+8400,25,button_up
+15000,25,
