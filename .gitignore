@@ -1,0 +1,8 @@
+/build/
+/.cache/
+compile_commands.json
+contract*.xml
+contract-log.jsonl
+*.jsonl
+__pycache__/
+.DS_Store
