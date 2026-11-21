@@ -34,6 +34,9 @@ typedef struct {
     uint32_t max_loop_cycles; /**< ループ1周の実行時間の最大（cycles） */
     uint32_t max_task_cycles[DIAG_TASK_COUNT]; /**< sense, control, link, ui, report, health の順 */
     uint16_t overruns; /**< オーバーランの件数 */
+    uint16_t uart_ring_dropped; /**< 受信リングが満杯で捨てたバイト数（bsp、rx_overflow とは別。#45） */
+    uint16_t uart_errors; /**< UART の受信エラーの件数（bsp。#46） */
+    uint16_t stack_peak; /**< スタックの最大使用量（バイト。bsp。#47） */
 } diag_t;
 
 /** 集める元。 */
@@ -46,6 +49,7 @@ typedef struct {
     uint16_t cmd_duplicates; /**< 重複として前回の ACK を返した件数 */
     uint16_t temp_clamped; /**< 範囲外で丸めた件数 */
     uint16_t temp_rejected; /**< 変化率で棄却した件数 */
+    bsp_diag_t bsp; /**< bsp の診断値（bsp_diag_port_t で読んだもの） */
 } diag_sources_t;
 
 /**

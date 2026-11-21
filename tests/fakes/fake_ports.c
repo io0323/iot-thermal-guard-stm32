@@ -106,6 +106,12 @@ static const wdt_port_t s_wdt = {f_refresh};
 static const reset_port_t s_reset = {f_reason, f_count, f_system_reset};
 static const entropy_port_t s_entropy = {f_gather};
 
+static void f_bsp_diag(bsp_diag_t *out)
+{
+    *out = g_fake.bsp_diag;
+}
+static const bsp_diag_port_t s_bsp_diag = {f_bsp_diag};
+
 void fake_ports_init(ports_t *out)
 {
     memset(&g_fake, 0, sizeof g_fake);
@@ -128,6 +134,7 @@ void fake_ports_init(ports_t *out)
         out->wdt = &s_wdt;
         out->reset = &s_reset;
         out->entropy = &s_entropy;
+        out->bsp_diag = &s_bsp_diag;
     }
 }
 

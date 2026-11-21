@@ -31,6 +31,7 @@
 #include "safety_fsm.h"
 #include "scheduler.h"
 #include "temp_sensor.h"
+#include "tick.h"
 #include "upstream.h"
 #include "version.h"
 
@@ -147,7 +148,7 @@ static void task_control(uint32_t now)
     fsm_output_t o;
     temp_get(&in.temp);
     /* INIT を終える時点：ready になった、または起動から2000ms（#26） */
-    in.init_done = in.temp.ready || (int32_t)(now - (s_boot_ms + FW_INIT_MAX_MS)) >= 0;
+    in.init_done = in.temp.ready || tick_reached(now, s_boot_ms + FW_INIT_MAX_MS);
     in.ack = s_ack_pending; /* 短押しの承認は1回だけ渡し、当たる行がなくても消費する */
     s_ack_pending = false;
     in.warn_c100 = s_cmd.warn_c100;
@@ -425,5 +426,6 @@ void firmware_diag(fw_diag_t *out)
         .cmd_duplicates = s_cmd.cmd_duplicates,
     };
     temp_counters(&src.temp_clamped, &src.temp_rejected);
+    s_p->bsp_diag->read(&src.bsp);
     diag_collect(out, &src);
 }

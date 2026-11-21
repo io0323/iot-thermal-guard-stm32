@@ -6,8 +6,8 @@
 # ゲートを順に流し、1つ落ちても残りを流してから、どれか1つでも落ちていれば終了コード 1 にする。
 # 報告ファイル（カバレッジの HTML、各ツールの出力、summary.txt）は出力先に置く。
 #   forbidden  : tools/check_forbidden.sh
-#   lizard     : 循環的複雑度 10 以下（app・service・lib・main・bsp/host）
-#   cppcheck   : MISRA アドオン＋warning・style・portability。抑止は misra-suppressions.txt だけ（ADR-0002）
+#   lizard     : 循環的複雑度 10 以下（app・service・lib・main・bsp/host・bsp/stm32f4。#49）
+#   cppcheck   : MISRA アドオン＋warning・style・portability。抑止は 15.5 の再分類（misra-suppressions.txt）と、該当行の直前のインライン抑止（ADR-0002）
 #   clang-tidy : .clang-tidy。host-debug の compile_commands.json を使う（app・service・lib・ports・main）
 #   doxygen    : Doxyfile。app・service・lib・ports の公開ヘッダ
 #   coverage   : host-coverage で CTest を流し、gcovr で app・service の行カバレッジ 80% 以上
@@ -59,7 +59,7 @@ gate_forbidden() {
 }
 
 gate_lizard() {
-    lizard -C 10 -w app service lib main bsp/host >"$OUT/lizard.txt" 2>&1
+    lizard -C 10 -w app service lib main bsp/host bsp/stm32f4 >"$OUT/lizard.txt" 2>&1
     local rc=$?
     NOTE="超過 $(grep -c 'warning:' "$OUT/lizard.txt" || true) 件"
     return $rc

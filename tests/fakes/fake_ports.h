@@ -36,6 +36,7 @@ typedef struct {
     uint16_t reset_count;
     uint8_t entropy[8];
     size_t entropy_len;
+    bsp_diag_t bsp_diag; /**< bsp_diag->read() が返す値 */
 } fake_state_t;
 
 extern fake_state_t g_fake;

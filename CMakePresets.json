@@ -29,6 +29,34 @@
         "TG_SANITIZE": "OFF",
         "BUILD_TESTING": "ON"
       }
+    },
+    {
+      "name": "target-debug",
+      "displayName": "ターゲット版（STM32F401RE、-Og -g3）",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/target-debug",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "TG_TARGET": "ON",
+        "TG_SANITIZE": "OFF",
+        "BUILD_TESTING": "OFF"
+      }
+    },
+    {
+      "name": "target-release",
+      "displayName": "ターゲット版（STM32F401RE、-Os -g）",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/target-release",
+      "toolchainFile": "${sourceDir}/cmake/arm-none-eabi.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "TG_TARGET": "ON",
+        "TG_SANITIZE": "OFF",
+        "BUILD_TESTING": "OFF"
+      }
     }
   ],
   "buildPresets": [
@@ -39,6 +67,14 @@
     {
       "name": "host-coverage",
       "configurePreset": "host-coverage"
+    },
+    {
+      "name": "target-debug",
+      "configurePreset": "target-debug"
+    },
+    {
+      "name": "target-release",
+      "configurePreset": "target-release"
     }
   ],
   "testPresets": [

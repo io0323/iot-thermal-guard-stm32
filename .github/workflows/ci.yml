@@ -75,3 +75,26 @@ jobs:
           name: quality-report
           path: build/quality
           if-no-files-found: warn
+
+  target:
+    # ターゲット版（P5）。手順は tools/target.sh にまとめ、手元では tools/target-docker.sh で同じものを流す。
+    # ツールチェーンは ubuntu-24.04 の apt の gcc-arm-none-eabi（ADR-0004）。実機への書き込みはしない。
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: ツール（apt）
+        run: sudo apt-get update && sudo apt-get install -y ninja-build gcc-arm-none-eabi libnewlib-arm-none-eabi
+
+      - name: ビルド（target-debug・target-release）、サイズ、スタック
+        run: tools/target.sh build/target-report
+
+      - name: .elf・.map・報告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: target-report
+          path: build/target-report
+          if-no-files-found: warn

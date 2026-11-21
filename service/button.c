@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "tick.h"
+
 static void push(button_t *b, button_event_t ev)
 {
     if (b->count >= BUTTON_QUEUE_LEN) {
@@ -25,7 +27,7 @@ void button_init(button_t *b)
 void button_update(button_t *b, bool pressed, uint32_t now)
 {
     /* 長押しは、このサンプルで離しが確定する前に判定する（ちょうど3000ms 押して離したら長押し） */
-    if (b->pressed && !b->long_fired && (int32_t)(now - (b->press_ms + BUTTON_LONG_MS)) >= 0) {
+    if (b->pressed && !b->long_fired && tick_reached(now, b->press_ms + BUTTON_LONG_MS)) {
         b->long_fired = true;
         push(b, BTN_EV_LONG);
     }

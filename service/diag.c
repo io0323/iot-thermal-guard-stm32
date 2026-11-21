@@ -24,6 +24,9 @@ void diag_collect(diag_t *out, const diag_sources_t *src)
         out->max_task_cycles[i] = src->sched->tasks[i].max_cycles;
     }
     out->overruns = src->sched->overruns;
+    out->uart_ring_dropped = src->bsp.uart_ring_dropped;
+    out->uart_errors = src->bsp.uart_errors;
+    out->stack_peak = src->bsp.stack_peak;
 }
 
 uint16_t diag_next_reset_count(uint16_t count)

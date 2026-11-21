@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "link_frame.h"
+#include "tick.h"
 
 void report_init(report_t *r)
 {
@@ -43,7 +44,7 @@ size_t report_tick(report_t *r, const report_snapshot_t *s, link_frame_t out[REP
     out[n].seq = 0U;
     out[n].u.heartbeat.uptime_ms = s->uptime_ms;
     n++;
-    if ((int32_t)(s->uptime_ms - (r->last_state_ms + REPORT_STATE_PERIOD_MS)) >= 0) {
+    if (tick_reached(s->uptime_ms, r->last_state_ms + REPORT_STATE_PERIOD_MS)) {
         report_make_state(s, &out[n]);
         n++;
         r->last_state_ms = s->uptime_ms;

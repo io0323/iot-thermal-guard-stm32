@@ -16,6 +16,7 @@
 #include "ntc_model.h"
 #include "ring_buffer.h"
 #include "scenario.h"
+#include "tick.h"
 
 #define RX_RING_SIZE 256u
 #define TX_BUF_SIZE 1024u
@@ -198,6 +199,15 @@ static const wdt_port_t s_wdt = {host_wdt_refresh};
 static const reset_port_t s_reset = {host_reset_reason, host_reset_count, host_system_reset};
 static const entropy_port_t s_entropy = {host_gather};
 
+/* ---- bsp_diag：ホスト版には受信リングの取りこぼし・UART のエラー・スタックの計測がないので、すべて 0（#45〜#47） ---- */
+static void host_bsp_diag(bsp_diag_t *out)
+{
+    out->uart_ring_dropped = 0U;
+    out->uart_errors = 0U;
+    out->stack_peak = 0U;
+}
+static const bsp_diag_port_t s_bsp_diag = {host_bsp_diag};
+
 void bsp_init(ports_t *out)
 {
     s_start_ms = mono_ns() / 1000000u;
@@ -213,6 +223,7 @@ void bsp_init(ports_t *out)
     out->wdt = &s_wdt;
     out->reset = &s_reset;
     out->entropy = &s_entropy;
+    out->bsp_diag = &s_bsp_diag;
 }
 
 bool bsp_host_open_uart(const char *path)
@@ -260,7 +271,7 @@ bool bsp_host_scenario_hang(void)
 
 bool bsp_host_wdt_expired(void)
 {
-    return (int32_t)(host_now_ms() - (s_last_refresh_ms + HOST_WDT_TIMEOUT_MS)) >= 0;
+    return tick_reached(host_now_ms(), s_last_refresh_ms + HOST_WDT_TIMEOUT_MS);
 }
 
 void bsp_host_watchdog_reset(char *const argv[])

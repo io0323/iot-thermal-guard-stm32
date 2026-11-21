@@ -175,7 +175,8 @@ void host_log_diag(uint32_t t, const fw_diag_t *d)
     for (size_t i = 0; i < FW_TASK_COUNT; i++) {
         fprintf(s_out, (i == 0u) ? "%" PRIu32 : ",%" PRIu32, d->max_task_cycles[i]);
     }
-    fprintf(s_out, "],\"overruns\":%u}\n", d->overruns);
+    fprintf(s_out, "],\"overruns\":%u,\"uart_ring_dropped\":%u,\"uart_errors\":%u,\"stack_peak\":%u}\n", d->overruns,
+            d->uart_ring_dropped, d->uart_errors, d->stack_peak);
     (void)fflush(s_out);
 }
 

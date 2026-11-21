@@ -5,6 +5,8 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+option(TG_TARGET "ターゲット版（STM32F401RE、arm-none-eabi）を作る。target-debug・target-release が ON にする" OFF)
+
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 include(warnings)
 include(sanitizers)
@@ -75,6 +77,12 @@ add_library(tg_firmware STATIC main/firmware.c)
 target_include_directories(tg_firmware PUBLIC ${CMAKE_SOURCE_DIR}/main)
 target_link_libraries(tg_firmware PUBLIC tg_app tg_service tg_ports PRIVATE tg_config)
 tg_warnings(tg_firmware)
+
+if(TG_TARGET)
+    # ターゲット版（P5）：bsp/stm32f4 と、ベンダーのコード（CMSIS・LL）。ホスト版とテストは作らない
+    include(target)
+    return()
+endif()
 
 # ホスト側の共通部品（温度→生値のモデル、シナリオ CSV）。bsp_host と sim_harness が使う。浮動小数点はここだけ
 add_library(tg_host_sim STATIC

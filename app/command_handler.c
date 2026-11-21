@@ -9,6 +9,7 @@
 #include "safety_fsm.h"
 #include "sat.h"
 #include "thresholds.h"
+#include "tick.h"
 
 void cmd_init(cmd_handler_t *h)
 {
@@ -177,7 +178,7 @@ void cmd_handle(cmd_handler_t *h, const link_cmd_t *cmd, uint32_t now_ms, const 
 
 bool cmd_lease_tick(cmd_handler_t *h, uint32_t now_ms)
 {
-    if (h->override_active && (int32_t)(now_ms - h->override_expires_ms) >= 0) {
+    if (h->override_active && tick_reached(now_ms, h->override_expires_ms)) {
         h->override_active = false;
         return true;
     }

@@ -132,6 +132,7 @@ void fsm_init(fsm_ctx_t *ctx)
     ctx->clear_run = 0U;
 }
 
+// cppcheck-suppress misra-c2012-8.7 ; ADR-0002 D-13（単体テストから直接呼ぶ公開関数）
 /* 取り違えの検出：warn・crit の並びの取り違えは test_safety_fsm の test_classify_direct・test_row2_init_classifies で落ちる（open-questions #41） */
 /* NOLINTNEXTLINE(bugprone-easily-swappable-parameters) */
 fsm_state_t fsm_classify(int16_t t_c100, int16_t warn_c100, int16_t crit_c100)

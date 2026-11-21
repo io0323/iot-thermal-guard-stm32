@@ -27,7 +27,7 @@ IoT・組込みポートフォリオ4作品のうちの1つで、上位（作品
 - C11、`-Wall -Wextra -Werror -Wconversion -Wsign-conversion -Wshadow -Wstrict-prototypes -Wcast-align -Wswitch-enum -fno-common`。ホスト版は `-funsigned-char`
 - app・service・lib では `malloc` 系・`float`・`double` を使わない（bsp_host の CLI と温度→生値の変換だけ例外）
 - データに素の `char` を使わない（`uint8_t`）。フレームは構造体を memcpy せず、`put_u16le()` などで1項目ずつ組み立てる
-- 時刻の比較は必ず `(int32_t)(now - t) >= 0` の形（uptime_ms は u32 で一周する）
+- 時刻の比較は必ず `tick_reached()`（`lib/tick.h`）を使う（uptime_ms は u32 で一周する）
 - ISR はフラグを立てるかバッファに入れるだけ。ISR と共有する変数は `volatile`
 - 公開関数には Doxygen コメント（`@brief`・`@param`・`@return`）。循環的複雑度は 10 以下を目安にする
 
@@ -39,6 +39,12 @@ cmake --preset host-debug && cmake --build --preset host-debug
 ctest --preset host-debug --output-on-failure
 uv tool install "iotspec @ git+https://github.com/io0323/iot-common-spec@v0.2.1"
 iotspec-contract --role mcu-c-01 --target-cmd "./build/host/mcu_c_01 {uart}" --junit contract.xml
+```
+
+ターゲット版（STM32F401RE）のビルドと検査（サイズ・スタック・ISR）は、手元では CI と同じコンテナで流す（この Mac では Homebrew が使えない）：
+
+```sh
+tools/target-docker.sh   # target-debug・target-release、tools/check_size.py・stack_report.py・isr_report.py
 ```
 
 プリセット名・出力先・実行ファイル名（`build/host/mcu_c_01`）は契約テストが前提にしているので変えない。

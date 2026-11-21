@@ -44,7 +44,7 @@ iot-thermal-guard-stm32/
 | --- | --- | --- | --- |
 | `host-debug` | `build/host` | ホスト版＋全テスト。ASan・UBSan あり。契約テストは `build/host/mcu_c_01` を起動する | P1〜 |
 | `host-coverage` | `build/host-cov` | gcov 付き。gcovr で app・service の行カバレッジを集計 | P4〜 |
-| `target-debug`／`target-release` | `build/target` | arm-none-eabi-gcc、`-Og`／`-Os`。.elf・.bin・.map | P5〜 |
+| `target-debug`／`target-release` | `build/target-debug`／`build/target-release` | arm-none-eabi-gcc、`-Og`／`-Os`。.elf・.bin・.map | P5〜 |
 | `target-renode` | `build/renode` | target と同じソースに `ADC_SOFTWARE_START=1`（Renode 用の ADC 開始方法） | P6〜 |
 
 ### コンパイルオプション（共通）
@@ -56,7 +56,7 @@ iot-thermal-guard-stm32/
 
 ## 2. ポートと時間
 
-時間はすべて `tick_port` のミリ秒で扱う。ホスト版は実時間（CLOCK\_MONOTONIC）、シナリオテストは仮想時間、1つのバイナリで両方を切り替えることはしない。uptime\_ms は u32 で約49.7日で一周するので、時刻の比較は必ず `(int32_t)(now - t) >= 0` の形で書く。
+時間はすべて `tick_port` のミリ秒で扱う。ホスト版は実時間（CLOCK\_MONOTONIC）、シナリオテストは仮想時間、1つのバイナリで両方を切り替えることはしない。uptime\_ms は u32 で約49.7日で一周するので、時刻の比較は必ず `(int32_t)(now - t) >= 0` の形で書く。実際のコードでは lib/tick.h の tick\_reached(now, deadline)（符号なしの差が 0x80000000 未満なら真）だけを使い、符号付きへのキャストを各所に書かない（MISRA 10.8 の逸脱を作らないため）。
 
 ### ports.h
 
@@ -73,9 +73,11 @@ typedef enum { RESET_UNKNOWN, RESET_POWER_ON, RESET_PIN, RESET_WATCHDOG, RESET_S
                RESET_BROWNOUT, RESET_LOW_POWER } reset_reason_t;   /* CR-2 の値と同じ順 */
 typedef struct { reset_reason_t (*reason)(void); uint16_t (*count)(void); void (*system_reset)(void); } reset_port_t;
 typedef struct { size_t (*gather)(uint8_t *buf, size_t cap); } entropy_port_t;
+typedef struct { uint16_t uart_ring_dropped; uint16_t uart_errors; uint16_t stack_peak; } bsp_diag_t;
+typedef struct { void (*read)(bsp_diag_t *out); } bsp_diag_port_t;
 typedef struct { const tick_port_t *tick; const adc_port_t *adc; const pwm_port_t *pwm; const gpio_port_t *gpio;
                  const uart_port_t *uart; const wdt_port_t *wdt; const reset_port_t *reset;
-                 const entropy_port_t *entropy; } ports_t;
+                 const entropy_port_t *entropy; const bsp_diag_port_t *bsp_diag; } ports_t;
 void bsp_init(ports_t *out);   /* bsp_host と bsp_stm32f4 がそれぞれ実装する */
 ```
 
@@ -235,7 +237,7 @@ auto(t)= t < 35.00℃ → 0、 35.00〜45.00℃ → (t − 3500) × 400 ÷ 1000�
 
 ### ボタン（button、10ms ごと）
 
-- EXTI は「押されたかもしれない」フラグだけを立てる。判定は task\_ui が `button_pressed()` を 10ms ごとに読んで行う
+- 割り込み（EXTI）は使わない（チャタリング除去に2回の一致が要るので、割り込みで拾っても判定は速くならない。ADR-0005）。判定は task\_ui が `button_pressed()` を 10ms ごとに読んで行う
 - チャタリング除去：同じレベルが2回（20ms）続いたら確定
 - 短押し：押してから3秒未満で離したとき。長押し：押し続けて3秒に達した時点（離すのを待たない）。長押しの後に離しても短押しにはしない
 - 短押しの意味：ブザーが鳴っていて消音していなければ（CRITICAL・SENSOR\_FAULT で消音していない間。断続の音が止まっている瞬間も含む）「消音」、それ以外は「承認」として次の fsm\_step に1回だけ渡す
@@ -304,7 +306,7 @@ auto(t)= t < 35.00℃ → 0、 35.00〜45.00℃ → (t − 3500) × 400 ÷ 1000�
 
 ### リセット要因と回数
 
-- 実機：RCC\_CSR のフラグ（PORRST、PINRST、IWDGRST、SFTRST、BORRST、LPWRRST）を読んで `reset_reason_t` にし、RMVF で消す。複数立っていれば IWDG → ソフトウェア → BOR → 低電力 → 電源投入 → ピン の順に優先する（電源投入ではピンも立つため）
+- 実機：RCC\_CSR のフラグ（PORRST、PINRST、IWDGRST、SFTRST、BORRST、LPWRRST）を読んで `reset_reason_t` にし、RMVF で消す。複数立っていれば IWDG → ソフトウェア → 電源投入 → BOR → 低電力 → ピン の順に優先する（電源投入では BORRSTF とピンも立つため。どのリセットでもピンは立つので最後に見る）
 - リセット回数は `.noinit` 領域にマジック値と一緒に置き、電源投入では 0 から数え直す
 - ホスト：疑似ウォッチドッグが500ms リフレッシュされないと、環境変数 `MCU_C_01_RESET_REASON=watchdog` と回数を付けて自分自身を `execv()` で起動し直す。開いている UART のパスは引数でそのまま渡す
 - リセット要因は CR-2 が決まるまで UART では送らず、診断値とホスト版のログに残す

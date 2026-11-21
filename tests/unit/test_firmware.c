@@ -9,6 +9,7 @@
 #include "fake_ports.h"
 #include "firmware.h"
 #include "link_frame.h"
+#include "tick.h"
 #include "unity.h"
 
 #define MAX_FRAMES 512
@@ -40,7 +41,7 @@ static void parse_tx(void)
 
 static void run_until(uint32_t t)
 {
-    while ((int32_t)(t - s_now) >= 0) {
+    while (tick_reached(t, s_now)) {
         g_fake.now_ms = s_now;
         firmware_poll();
         parse_tx();
@@ -336,6 +337,21 @@ static void test_bad_frames_counted(void)
     TEST_ASSERT_EQUAL_UINT8(RESET_POWER_ON, d.reset_reason);
 }
 
+/* bsp の診断値（#45〜#47）は bsp_diag->read() から別の項目として写し、rx_overflow には混ぜない */
+static void test_bsp_diag_kept_separate(void)
+{
+    boot();
+    g_fake.bsp_diag.uart_ring_dropped = 3U;
+    g_fake.bsp_diag.uart_errors = 4U;
+    g_fake.bsp_diag.stack_peak = 1234U;
+    fw_diag_t d;
+    firmware_diag(&d);
+    TEST_ASSERT_EQUAL_UINT16(3U, d.uart_ring_dropped);
+    TEST_ASSERT_EQUAL_UINT16(4U, d.uart_errors);
+    TEST_ASSERT_EQUAL_UINT16(1234U, d.stack_peak);
+    TEST_ASSERT_EQUAL_UINT16(0U, d.rx_overflow);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -350,5 +366,6 @@ int main(void)
     RUN_TEST(test_upstream_lost_and_restored);
     RUN_TEST(test_tx_blocked_keeps_frames_and_seq);
     RUN_TEST(test_bad_frames_counted);
+    RUN_TEST(test_bsp_diag_kept_separate);
     return UNITY_END();
 }

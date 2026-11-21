@@ -4,6 +4,7 @@
 
 #include "ports.h"
 #include "sat.h"
+#include "tick.h"
 
 void sched_init(sched_t *s, sched_task_t *tasks, size_t count, const tick_port_t *tick)
 {
@@ -34,7 +35,7 @@ static void run_task(sched_t *s, sched_task_t *t, uint32_t now)
         t->max_cycles = dc;
     }
     t->next_ms += t->period_ms;
-    if ((int32_t)(now - t->next_ms) >= 0) {
+    if (tick_reached(now, t->next_ms)) {
         /* 遅れ：追いつくまで実行せず、位相を保って未来の周期へ進める */
         uint32_t behind = now - t->next_ms;
         t->next_ms += ((behind / t->period_ms) + 1U) * t->period_ms;
@@ -48,7 +49,7 @@ void sched_run(sched_t *s)
     uint32_t now = s->tick->now_ms();
     for (size_t i = 0; i < s->count; i++) {
         sched_task_t *t = &s->tasks[i];
-        if (t->enabled && (t->period_ms != 0U) && ((int32_t)(now - t->next_ms) >= 0)) {
+        if (t->enabled && (t->period_ms != 0U) && tick_reached(now, t->next_ms)) {
             run_task(s, t, now);
         }
     }

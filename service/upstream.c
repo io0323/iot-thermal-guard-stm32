@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "tick.h"
+
 void upstream_init(upstream_t *u, uint32_t now_ms)
 {
     u->state = UPSTREAM_UNKNOWN;
@@ -21,7 +23,7 @@ upstream_event_t upstream_tick(upstream_t *u, uint32_t now_ms)
     if (u->state == UPSTREAM_LOST) {
         return UPSTREAM_EV_NONE;
     }
-    if ((int32_t)(now_ms - (u->last_ms + UPSTREAM_LOST_MS)) >= 0) {
+    if (tick_reached(now_ms, u->last_ms + UPSTREAM_LOST_MS)) {
         u->state = UPSTREAM_LOST;
         return UPSTREAM_EV_LOST;
     }

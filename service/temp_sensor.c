@@ -20,6 +20,7 @@
 #include "ntc_table_data.h"
 #include "ports.h"
 #include "sat.h"
+#include "tick.h"
 
 static const adc_port_t *s_adc;
 static median5_t s_median;
@@ -153,7 +154,7 @@ void temp_update(uint16_t raw, uint32_t now_ms)
 void temp_tick(uint32_t now_ms)
 {
     if (!s_stalled) {
-        if ((int32_t)(now_ms - (s_last_sample_ms + TEMP_ADC_TIMEOUT_MS)) >= 0) {
+        if (tick_reached(now_ms, s_last_sample_ms + TEMP_ADC_TIMEOUT_MS)) {
             s_stalled = true;
             if ((s_fault == TEMP_FAULT_NONE) || is_ready()) {
                 enter_fault(TEMP_FAULT_ADC_TIMEOUT);
@@ -165,7 +166,7 @@ void temp_tick(uint32_t now_ms)
         }
         return;
     }
-    if ((int32_t)(now_ms - s_next_restart_ms) >= 0) {
+    if (tick_reached(now_ms, s_next_restart_ms)) {
         s_adc->restart();
         s_next_restart_ms += TEMP_ADC_RESTART_MS;
     }
