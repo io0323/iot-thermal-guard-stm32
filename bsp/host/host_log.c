@@ -1,6 +1,8 @@
 #include "host_log.h"
 
+#include <fcntl.h>
 #include <inttypes.h>
+#include <unistd.h>
 
 static FILE *s_out;
 
@@ -120,16 +122,35 @@ static void on_rx_error(uint32_t t, link_rx_error_t reason, const uint8_t *raw, 
     fputs("\"}\n", s_out);
 }
 
-static const fw_observer_t s_obs = {on_boot, on_state, on_fan, on_tx, on_rx, on_rx_error};
+static void on_led(uint32_t t, led_t led, bool on)
+{
+    static const char *const names[] = {"green", "yellow", "red"};
+    const char *name = ((size_t)led < (sizeof names / sizeof names[0])) ? names[led] : "unknown";
+    fprintf(s_out, "{\"t_ms\":%" PRIu32 ",\"kind\":\"led\",\"led\":\"%s\",\"on\":%s}\n", t, name, on ? "true" : "false");
+}
 
-bool host_log_open(const char *path)
+static void on_buzzer(uint32_t t, bool on)
+{
+    fprintf(s_out, "{\"t_ms\":%" PRIu32 ",\"kind\":\"buzzer\",\"on\":%s}\n", t, on ? "true" : "false");
+}
+
+static const fw_observer_t s_obs = {on_boot, on_state, on_fan, on_tx, on_rx, on_rx_error, on_led, on_buzzer};
+
+bool host_log_open(const char *path, bool append)
 {
     if (path == NULL) {
         s_out = stderr;
         return true;
     }
-    s_out = fopen(path, "w");
+    /* O_CLOEXEC：疑似ウォッチドッグの execv で次のプロセスに漏らさない（次のプロセスが開き直す） */
+    int flags = O_WRONLY | O_CREAT | O_CLOEXEC | (append ? O_APPEND : O_TRUNC);
+    int fd = open(path, flags, 0644);
+    if (fd < 0) {
+        return false;
+    }
+    s_out = fdopen(fd, append ? "a" : "w");
     if (s_out == NULL) {
+        (void)close(fd);
         return false;
     }
     (void)setvbuf(s_out, NULL, _IOLBF, 0); /* 1行ずつ書き出す */

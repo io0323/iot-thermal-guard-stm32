@@ -27,11 +27,37 @@ bool bsp_host_open_uart(const char *path);
  */
 void bsp_host_set_temp(double temp_c);
 
+#define HOST_WDT_TIMEOUT_MS 500u /**< 疑似ウォッチドッグ：最後のリフレッシュからこの時間で再起動 */
+
 /**
- * @brief シナリオを再生する（--temp より優先）。時刻は起動からの uptime_ms。
+ * @brief シナリオを再生する（--temp より優先）。
+ *
+ * シナリオの時刻は「環境変数 MCU_C_01_SCENARIO_ELAPSED_MS（なければ 0）＋起動からの経過」。疑似ウォッチドッグで
+ * 起動し直しても続くので、hang は1回だけ起きる（open-questions #35）。uptime_ms は再起動で 0 から数え直す。
  * @param sc シナリオ（再生中は有効なままにしておく）
  */
 void bsp_host_set_scenario(const scenario_t *sc);
+
+/**
+ * @brief シナリオの event を今の時刻まで当て、hang に達したかを返す。
+ * @return hang に達していれば true（ファームウェアのループを止める）
+ */
+bool bsp_host_scenario_hang(void);
+
+/**
+ * @brief 疑似ウォッチドッグが切れたか（最後のリフレッシュから500ms）。
+ * @return 切れていれば true
+ */
+bool bsp_host_wdt_expired(void);
+
+/**
+ * @brief 疑似ウォッチドッグのリセット：MCU_C_01_RESET_REASON=watchdog、MCU_C_01_RESET_COUNT=回数＋1、
+ *        MCU_C_01_SCENARIO_ELAPSED_MS を付けて、同じ引数で自分自身を execv() する。
+ *        UART とログは O_CLOEXEC で開いているので、次のプロセスが開き直す。
+ * @param argv main の引数
+ * @return 戻らない。execv が失敗したときだけ戻る
+ */
+void bsp_host_watchdog_reset(char *const argv[]);
 
 /**
  * @brief ADC に渡している生値。

@@ -12,10 +12,11 @@
 
 /**
  * @brief ログの出力先を開く。
- * @param path ファイル（NULL なら標準エラー）
+ * @param path   ファイル（NULL なら標準エラー）
+ * @param append 追記するか（疑似ウォッチドッグで起動し直したとき。open-questions #38）
  * @return 開けたら true
  */
-bool host_log_open(const char *path);
+bool host_log_open(const char *path, bool append);
 
 /**
  * @brief firmware に渡す観測フック。

@@ -1,6 +1,8 @@
 #include "bsp_host.h"
 
 #include <errno.h>
+#include <inttypes.h>
+#include <stdio.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <stdlib.h>
@@ -10,6 +12,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "diag.h"
 #include "ntc_model.h"
 #include "ring_buffer.h"
 #include "scenario.h"
@@ -27,6 +30,8 @@ static uint16_t s_adc_raw = 2048u;
 static uint16_t s_fan_pm;
 static scenario_player_t s_player;
 static bool s_use_scenario;
+static uint32_t s_scenario_base_ms; /* 前のプロセスから引き継いだシナリオの時刻 */
+static uint32_t s_last_refresh_ms;
 
 static uint64_t mono_ns(void)
 {
@@ -46,13 +51,20 @@ static uint32_t host_cycles(void)
     return (uint32_t)mono_ns(); /* ns。差だけを使う */
 }
 
+/* シナリオの時刻（再起動をまたいで続く。#35） */
+static uint32_t scenario_now(void)
+{
+    uint32_t t = s_scenario_base_ms + host_now_ms();
+    scenario_player_advance(&s_player, t);
+    return t;
+}
+
 /* ---- adc：呼ばれるたび（100ms ごと）に1値。シナリオがあればその時刻の値（adc_stall 中は値なし） ---- */
 static bool host_take_sample(uint16_t *raw)
 {
     if (s_use_scenario) {
-        uint32_t now = host_now_ms();
-        scenario_player_advance(&s_player, now);
-        return scenario_player_sample(&s_player, now, raw);
+        uint32_t t = scenario_now();
+        return scenario_player_sample(&s_player, t, raw);
     }
     *raw = s_adc_raw;
     return true;
@@ -68,7 +80,7 @@ static void host_set_duty(uint16_t pm)
     s_fan_pm = pm; /* ログは firmware の観測フックで書く */
 }
 
-/* ---- gpio：P1 は何もしない（LED・ブザー・ボタンは P3） ---- */
+/* ---- gpio：LED・ブザーはログだけ（firmware の観測フックで書く）。ボタンはシナリオの button_down〜button_up ---- */
 static void host_set_led(led_t led, bool on)
 {
     (void)led;
@@ -82,7 +94,11 @@ static void host_set_buzzer(bool on)
 
 static bool host_button(void)
 {
-    return false;
+    if (!s_use_scenario) {
+        return false;
+    }
+    (void)scenario_now();
+    return s_player.button;
 }
 
 /* ---- uart ---- */
@@ -105,9 +121,10 @@ static size_t host_uart_write(const uint8_t *buf, size_t len)
     return len;
 }
 
-/* ---- wdt：P1 は何もしない（疑似ウォッチドッグは P3） ---- */
+/* ---- wdt：疑似ウォッチドッグ。監視はメインループ（bsp_host_wdt_expired） ---- */
 static void host_wdt_refresh(void)
 {
+    s_last_refresh_ms = host_now_ms();
 }
 
 /* ---- reset ---- */
@@ -133,14 +150,30 @@ static reset_reason_t host_reset_reason(void)
     return RESET_UNKNOWN;
 }
 
+static uint32_t env_u32(const char *name)
+{
+    const char *env = getenv(name);
+    if (env == NULL || *env == '\0' || *env == '-') {
+        return 0u;
+    }
+    char *end = NULL;
+    errno = 0;
+    unsigned long v = strtoul(env, &end, 10);
+    if (*end != '\0' || errno != 0 || v > 0xFFFFFFFFul) {
+        return 0u;
+    }
+    return (uint32_t)v;
+}
+
 static uint16_t host_reset_count(void)
 {
-    return 0u; /* P3：疑似ウォッチドッグの再起動で引き継ぐ */
+    uint32_t c = env_u32("MCU_C_01_RESET_COUNT"); /* なければ 0 */
+    return (c > UINT16_MAX) ? (uint16_t)UINT16_MAX : (uint16_t)c;
 }
 
 static void host_system_reset(void)
 {
-    /* P3：execv で起動し直す */
+    /* ホスト版のファームウェアはソフトウェアリセットを使わない。再起動は疑似ウォッチドッグだけ */
 }
 
 /* ---- entropy ---- */
@@ -171,6 +204,7 @@ void bsp_init(ports_t *out)
     (void)rb_init(&s_rx, s_rx_storage, RX_RING_SIZE);
     s_tx_len = 0u;
     host_set_duty(1000u); /* 起動時はファン100% */
+    s_last_refresh_ms = 0u; /* 疑似ウォッチドッグは起動した時点から数える */
     out->tick = &s_tick;
     out->adc = &s_adc;
     out->pwm = &s_pwm;
@@ -183,7 +217,7 @@ void bsp_init(ports_t *out)
 
 bool bsp_host_open_uart(const char *path)
 {
-    s_fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    s_fd = open(path, O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC); /* execv のあとは次のプロセスが開き直す */
     if (s_fd < 0) {
         return false;
     }
@@ -209,6 +243,39 @@ void bsp_host_set_scenario(const scenario_t *sc)
 {
     scenario_player_init(&s_player, sc);
     s_use_scenario = true;
+    /* 前のプロセスから続ける（#35）。引き継いだ時刻までの event を当て、そこまでの hang は前のプロセスで起きたものなので消す */
+    s_scenario_base_ms = env_u32("MCU_C_01_SCENARIO_ELAPSED_MS");
+    scenario_player_advance(&s_player, s_scenario_base_ms);
+    s_player.hang = false;
+}
+
+bool bsp_host_scenario_hang(void)
+{
+    if (!s_use_scenario) {
+        return false;
+    }
+    (void)scenario_now();
+    return s_player.hang;
+}
+
+bool bsp_host_wdt_expired(void)
+{
+    return (int32_t)(host_now_ms() - (s_last_refresh_ms + HOST_WDT_TIMEOUT_MS)) >= 0;
+}
+
+void bsp_host_watchdog_reset(char *const argv[])
+{
+    char buf[16];
+    (void)snprintf(buf, sizeof buf, "%u", (unsigned)diag_next_reset_count(host_reset_count()));
+    (void)setenv("MCU_C_01_RESET_COUNT", buf, 1);
+    (void)setenv("MCU_C_01_RESET_REASON", "watchdog", 1);
+    (void)snprintf(buf, sizeof buf, "%" PRIu32, s_scenario_base_ms + host_now_ms());
+    (void)setenv("MCU_C_01_SCENARIO_ELAPSED_MS", buf, 1);
+    if (strchr(argv[0], '/') != NULL) {
+        (void)execv(argv[0], argv);
+    } else {
+        (void)execvp(argv[0], argv); /* PATH から起動されたとき */
+    }
 }
 
 uint16_t bsp_host_adc_raw(void)
