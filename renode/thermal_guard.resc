@@ -1,0 +1,19 @@
+:name: iot-thermal-guard-stm32（Nucleo-F401RE）
+:description: target-renode の .elf を、F401RE のプラットフォーム定義（循環・半分転送の DMA 付き）で読み込む（ADR-0006）
+
+$name?="nucleo"
+$elf?=$ORIGIN/../build/target-renode/mcu_c_01.elf
+
+# 循環・半分転送を足した DMA のモデル（Renode 本体は変えず、ここで読み込む。MIT、出典は renode/README.md）
+include $ORIGIN/peripherals/STM32DMA_Circular.cs
+
+mach create $name
+machine LoadPlatformDescription $ORIGIN/nucleo_f401re.repl
+sysbus Unregister sysbus.dma2
+machine LoadPlatformDescription $ORIGIN/dma2_circular.repl
+
+sysbus LoadELF $elf
+
+# ボタン B1（PC13、押すと Low）。基板のプルアップの代わりに High にしておく（しないと 0 のまま＝押されたままと読まれ、
+# 3秒で長押しになって強制全開が切り替わる）
+sysbus.gpioPortC OnGPIO 13 true

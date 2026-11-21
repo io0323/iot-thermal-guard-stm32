@@ -1,0 +1,35 @@
+// Nucleo-F401RE（STM32F401RE）のプラットフォーム定義（P6、ADR-0006）。
+// Renode 同梱の stm32f4.repl をもとに、メモリを F401RE に合わせ、ADC1 を足し、クロックを ADR-0005 の値にする。
+using "platforms/cpus/stm32f4.repl"
+
+// メモリ：Flash 512K、RAM 96K。Flash は実機と同じく 0x00000000 にも見せる（BOOT0=0 の別名。リセットのあと
+// Cortex-M はここからベクタ表を読むので、ないと IWDG のリセットのあとに止まる）
+flash: @ {
+        sysbus 0x08000000;
+        sysbus 0x00000000
+    }
+    size: 0x80000
+
+sram:
+    size: 0x18000
+
+// SysTick は SYSCLK 84MHz（ADR-0005）
+nvic:
+    systickFrequency: 84000000
+
+// TIM2・TIM3 は APB1 のタイマークロック 84MHz（ADR-0005）
+timer2:
+    frequency: 84000000
+
+timer3:
+    frequency: 84000000
+
+// ADC1（0x40012000）。Renode の STM32_ADC は外部トリガーを持たないので、target-renode は TIM2 の更新割り込みから
+// ソフトウェア開始する（ADC_SOFTWARE_START=1）。EOC の割り込みは ADC_IRQn（18）。DMA の要求は dma2_circular.repl で、
+// 循環・半分転送を足した DMA2（peripherals/STM32DMA_Circular.cs）の Stream0 につなぐ
+adc1: Analog.STM32_ADC @ sysbus 0x40012000
+    IRQ -> nvic@18
+
+// DWT（CYCCNT）。stm32f4.repl にないので足す（cycles() と boot_id の材料、起動時の待ちに使う）
+dwt: Miscellaneous.DWT @ sysbus 0xE0001000
+    frequency: 84000000
