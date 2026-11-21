@@ -9,3 +9,4 @@
 | [ADR-0003](ADR-0003-test-infrastructure.md) | テストの基盤 | 採用 | 2026-11-21 |
 | [ADR-0004](ADR-0004-target-toolchain-and-vendor-code.md) | ターゲット版のツールチェーンとベンダーのコードの版 | 採用 | 2026-11-21 |
 | [ADR-0005](ADR-0005-clock-pins-peripherals.md) | クロック・ピン・周辺機能の割り当て | 採用 | 2026-11-21 |
+| [ADR-0006](ADR-0006-renode.md) | Renode | 採用 | 2026-11-21 |
