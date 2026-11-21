@@ -9,25 +9,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "diag.h"
 #include "link_frame.h"
 #include "ports.h"
 #include "safety_fsm.h"
 
-#define FW_TASK_COUNT 6u
+#define FW_TASK_COUNT DIAG_TASK_COUNT
 #define FW_INIT_MAX_MS 2000u /**< INIT の最長。これまでに ready にならなければ SENSOR_FAULT */
 
-/** 診断値（詳細設計書 第7章の表）。 */
-typedef struct {
-    uint8_t reset_reason;
-    uint16_t reset_count;
-    uint16_t rx_cobs_errors, rx_len_errors, rx_crc_errors, rx_unexpected, rx_overflow;
-    uint16_t cmd_dropped_init, cmd_duplicates;
-    uint16_t tx_dropped;
-    uint16_t temp_clamped, temp_rejected;
-    uint32_t max_loop_cycles;
-    uint32_t max_task_cycles[FW_TASK_COUNT]; /**< sense, control, link, ui, report, health の順 */
-    uint16_t overruns;
-} fw_diag_t;
+/** 診断値（詳細設計書 第7章の表）。中身は service/diag.h。 */
+typedef diag_t fw_diag_t;
 
 /** 観測用のフック（ホスト版のログ）。どれも NULL でよい。 */
 typedef struct {
@@ -37,6 +28,8 @@ typedef struct {
     void (*tx)(uint32_t t_ms, const link_frame_t *f, const uint8_t *raw, size_t len);
     void (*rx)(uint32_t t_ms, const link_frame_t *f, const uint8_t *raw, size_t len);
     void (*rx_error)(uint32_t t_ms, link_rx_error_t reason, const uint8_t *raw, size_t len);
+    void (*led)(uint32_t t_ms, led_t led, bool on);   /**< LED が変わったとき */
+    void (*buzzer)(uint32_t t_ms, bool on);           /**< ブザーが変わったとき */
 } fw_observer_t;
 
 /**
@@ -56,6 +49,12 @@ void firmware_poll(void);
  * @param out 診断値
  */
 void firmware_diag(fw_diag_t *out);
+
+/**
+ * @brief 強制全開中か（長押しで切り替える。再起動で解除）。
+ * @return 強制全開中なら true
+ */
+bool firmware_force_full(void);
 
 /**
  * @brief 現在時刻（ログ用）。
