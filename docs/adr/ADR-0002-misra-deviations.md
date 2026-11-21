@@ -9,6 +9,7 @@ NFR-07 は「MISRA C:2012 の必須規則に準拠し、逸脱は ADR に理由�
 
 - ツール：cppcheck 2.13.0（ubuntu-24.04 の apt）の `--addon=misra`。合否は CI の結果を正とする
 - 対象：app・service・lib・ports・main。bsp・tests・third_party・external・build は対象外
+- 自作の bsp/stm32f4 も cppcheck（MISRA）と clang-tidy の対象外とする（open-questions #49）。CMSIS のレジスタのマクロ（`GPIOA` などの `((GPIO_TypeDef *) GPIOA_BASE)`）が整数からポインタへの変換で 11.4・11.6 に当たり、レジスタに触れる行のほぼすべてが逸脱になるため。代わりに lizard（複雑度10以下）、コンパイラの警告ゼロ（同じ警告オプション＋-Werror）、`tools/check_forbidden.sh` の対象にし、ISR は `docs/isr-review.md` でレビューする
 - 規則の本文はライセンスの都合でリポジトリに入れず、規則番号だけで判定する
 
 P4 の着手時点の指摘は12の規則で200か所あり、必須規則（Mandatory）に当たるものはなかった。
@@ -70,4 +71,4 @@ cppcheck では `misra-c2012-15.5` だけを、この ADR の番号を付けて�
 
 - 新しい逸脱を足すときは、該当行の直前にインラインの抑止を書き、この ADR の表に番号・場所・理由・代わりの対策を書く。番号は使い回さない（解消した D-01〜D-10 も欠番のまま）。CI の quality ジョブは、抑止されていない指摘が1件でもあれば失敗する
 - 抑止はコードと一緒に動くので、編集で行がずれてもゲートは落ちない。抑止の付いた行を消したり書き換えたりしたときは、この表も同じコミットで直す
-- 実機フェーズで bsp/stm32f4 を足しても、ベンダーコード（LL・CMSIS）は対象外（NFR-07）。bsp の自作部分を対象に入れるかは P5 で決める
+- ベンダーのコード（LL・CMSIS）は対象外（NFR-07）。bsp/stm32f4 の自作部分も cppcheck・clang-tidy の対象外（P5、#49。上の「状況」）
