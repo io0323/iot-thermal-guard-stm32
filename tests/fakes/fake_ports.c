@@ -26,6 +26,7 @@ static bool f_take(uint16_t *raw)
 
 static void f_restart(void)
 {
+    g_fake.adc_restarts++;
 }
 
 static void f_pwm(uint16_t pm)
@@ -130,6 +131,10 @@ void fake_ports_init(ports_t *out)
 
 void fake_uart_feed(const uint8_t *data, size_t len)
 {
+    if (g_fake.rx_pos == g_fake.rx_len) {
+        g_fake.rx_pos = 0u; /* 読み終えていれば先頭から使う */
+        g_fake.rx_len = 0u;
+    }
     if (len > (FAKE_UART_CAP - g_fake.rx_len)) {
         len = FAKE_UART_CAP - g_fake.rx_len;
     }
