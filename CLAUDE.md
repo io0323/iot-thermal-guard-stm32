@@ -41,6 +41,12 @@ uv tool install "iotspec @ git+https://github.com/io0323/iot-common-spec@v0.2.1"
 iotspec-contract --role mcu-c-01 --target-cmd "./build/host/mcu_c_01 {uart}" --junit contract.xml
 ```
 
+ターゲット版（STM32F401RE）のビルドと検査（サイズ・スタック・ISR）は、手元では CI と同じコンテナで流す（この Mac では Homebrew が使えない）：
+
+```sh
+tools/target-docker.sh   # target-debug・target-release、tools/check_size.py・stack_report.py・isr_report.py
+```
+
 プリセット名・出力先・実行ファイル名（`build/host/mcu_c_01`）は契約テストが前提にしているので変えない。
 
 ## ブランチと PR

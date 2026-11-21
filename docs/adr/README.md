@@ -7,3 +7,5 @@
 | [ADR-0001](ADR-0001-circuit-assumptions.md) | 温度計測の回路の前提 | 採用 | 2026-11-21 |
 | [ADR-0002](ADR-0002-misra-deviations.md) | MISRA C:2012 の逸脱と規則の再分類 | 採用 | 2026-11-21 |
 | [ADR-0003](ADR-0003-test-infrastructure.md) | テストの基盤 | 採用 | 2026-11-21 |
+| [ADR-0004](ADR-0004-target-toolchain-and-vendor-code.md) | ターゲット版のツールチェーンとベンダーのコードの版 | 採用 | 2026-11-21 |
+| [ADR-0005](ADR-0005-clock-pins-peripherals.md) | クロック・ピン・周辺機能の割り当て | 採用 | 2026-11-21 |

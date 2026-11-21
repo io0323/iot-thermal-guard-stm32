@@ -4,13 +4,14 @@
 温度を監視してファンを制御し、異常を知らせます。上位（作品03）とは UART でやり取りし、
 フレームは [iot-common-spec](https://github.com/io0323/iot-common-spec) v0.2.1 の第7章に従います。device_id は `mcu-c-01` です。
 
-いま動くのは PC 上のホスト版（`build/host/mcu_c_01`）です。実機は使わず、単体テスト・ゴールデン・仮想時間のシナリオ・契約テストで確かめます。
+いま動くのは PC 上のホスト版（`build/host/mcu_c_01`）です。STM32 向けのターゲット版（`build/target-*/mcu_c_01.elf`）もビルドできますが、**実機では未確認**です（下の「ターゲット版」）。
+実機は使わず、単体テスト・ゴールデン・仮想時間のシナリオ・契約テストで確かめます。
 設計は [docs/design/](docs/design/)、未決の論点と決定は [docs/open-questions.md](docs/open-questions.md) にあります。
 
 ## 必要なもの
 
 - CMake 3.25 以上、Ninja、C11 のコンパイラ（clang または gcc）、Python 3
-- 品質ゲートを手元で流すには Docker（下の「品質ゲート」）
+- 品質ゲートとターゲット版のビルドを手元で流すには Docker（下の「品質ゲート」「ターゲット版」）
 - 契約テストと再起動の結合テストを動かすには [uv](https://docs.astral.sh/uv/)（結合テストは Python 3.12 を使う。`.python-version` で指定しているので uv が用意する）
 
 ## ビルドとテスト
@@ -105,7 +106,7 @@ UART とログのファイルは `O_CLOEXEC` で開いていて、起動し直�
 | `buzzer` | `on` |
 | `tx`・`rx` | `type`（種別名）、`seq`、`fields`（下表）、`hex`（符号化済みのバイト列。末尾の `00` を含む） |
 | `rx_error` | `reason`（`cobs_error`・`length_mismatch`・`crc_mismatch`・`unexpected_type`・`rx_overflow`）、`hex` |
-| `diag` | `reset_reason`、`reset_count`、`rx_cobs_errors`、`rx_len_errors`、`rx_crc_errors`、`rx_unexpected`、`rx_overflow`、`cmd_dropped_init`、`cmd_duplicates`、`tx_dropped`、`temp_clamped`、`temp_rejected`、`max_loop_cycles`、`max_task_cycles`（sense・control・link・ui・report・health の順の配列）、`overruns`。ホスト版の cycles はナノ秒 |
+| `diag` | `reset_reason`、`reset_count`、`rx_cobs_errors`、`rx_len_errors`、`rx_crc_errors`、`rx_unexpected`、`rx_overflow`、`cmd_dropped_init`、`cmd_duplicates`、`tx_dropped`、`temp_clamped`、`temp_rejected`、`max_loop_cycles`、`max_task_cycles`（sense・control・link・ui・report・health の順の配列）、`overruns`、`uart_ring_dropped`・`uart_errors`・`stack_peak`（bsp の診断値。ホスト版はいつも 0）。ホスト版の cycles はナノ秒 |
 
 | type | `fields` のキー |
 | --- | --- |
@@ -126,11 +127,11 @@ CI の `quality` ジョブ（ubuntu-24.04）で、次のゲートをすべて通
 | カバレッジ | gcc 13.3＋gcovr 8.x（プリセット `host-coverage`） | app・service の行カバレッジ 80% 以上 | `CMakePresets.json`、`cmake/coverage.cmake` |
 | MISRA C:2012 | cppcheck 2.13.0（`--addon=misra`） | 抑止されていない指摘ゼロ。必須規則（Mandatory）の逸脱なし | `misra-suppressions.txt`、[ADR-0002](docs/adr/ADR-0002-misra-deviations.md) |
 | clang-tidy | clang-tidy 18.1.3 | 指摘ゼロ（`WarningsAsErrors: '*'`） | `.clang-tidy` |
-| 循環的複雑度 | lizard 1.26.1 | 10 以下（app・service・lib・main・bsp/host） | `tools/quality.sh` |
+| 循環的複雑度 | lizard 1.26.1 | 10 以下（app・service・lib・main・bsp/host・bsp/stm32f4） | `tools/quality.sh` |
 | Doxygen | doxygen 1.9.8 | 警告ゼロ（app・service・lib・ports の公開ヘッダ） | `Doxyfile` |
-| 禁止項目 | grep | app・service・lib に malloc 系・float・double・STM32 がない | `tools/check_forbidden.sh` |
+| 禁止項目 | grep | app・service・lib に malloc 系・float・double・STM32 がない。bsp/stm32f4 に malloc 系・float・double がない。STM32・CMSIS のヘッダの include は bsp/stm32f4 だけ | `tools/check_forbidden.sh` |
 
-- 対象は app・service・lib・ports・main です（lizard は bsp/host も）。bsp・tests・third_party・external は対象外です
+- 対象は app・service・lib・ports・main です（lizard は bsp/host・bsp/stm32f4 も）。bsp・tests・third_party・external は対象外です。bsp/stm32f4 を cppcheck・clang-tidy の対象にしない理由は ADR-0002 にあります（CMSIS のレジスタのマクロが規則 11.4・11.6 に当たるため、#49）
 - MISRA の逸脱は [ADR-0002](docs/adr/ADR-0002-misra-deviations.md) に1件ずつ書きます。規則の再分類（GRP）の一覧は ADR-0002 の「[規則の再分類](docs/adr/ADR-0002-misra-deviations.md#規則の再分類grp)」にあり、今は規則 15.5 だけを Disapplied にしています
 - 設計判断の記録は [docs/adr/](docs/adr/README.md) にあります
 
@@ -144,12 +145,49 @@ tools/quality-docker.sh        # 報告は build/quality-docker/（summary.txt�
 
 CI はコンテナを使わず、同じ `tools/quality.sh` を直接呼びます。ツールがそろった環境なら `tools/quality.sh [出力先]` でも流せます。
 
+## ターゲット版（STM32F401RE、実機では未確認）
+
+Nucleo-F401RE 向けのビルドです。app・service・lib・main はホスト版と同じソースを使い、`bsp/stm32f4/` だけが違います。
+**実機への書き込みと実機での動作確認はまだしていません。** 実機でしか確かめられないこと（ISR の実行時間、PWM・UART・ADC の動作、IWDG の時間、スタックの実測）は「実機フェーズで確認」として [docs/isr-review.md](docs/isr-review.md) と [ADR-0005](docs/adr/ADR-0005-clock-pins-peripherals.md) に残しています。
+
+```sh
+tools/target-docker.sh         # CI と同じ ubuntu:24.04 のコンテナで、2つのプリセットのビルドと検査。報告は build/target-docker/
+```
+
+CI の `target` ジョブは同じ `tools/target.sh` を直接呼びます。arm-none-eabi-gcc がある環境なら、次でもビルドできます。
+
+```sh
+cmake --preset target-release && cmake --build --preset target-release   # build/target-release/mcu_c_01.elf・.bin・.map
+cmake --preset target-debug && cmake --build --preset target-debug       # -Og -g3、build/target-debug/
+```
+
+`tools/target.sh` が確かめること（どれかが崩れたら失敗）：
+
+| 検査 | 基準 | 道具 |
+| --- | --- | --- |
+| ビルド | target-debug・target-release とも警告ゼロ（`-Werror`） | arm-none-eabi-gcc 13.2.1（ubuntu-24.04 の apt、[ADR-0004](docs/adr/ADR-0004-target-toolchain-and-vendor-code.md)） |
+| サイズ | Flash 64KB・RAM 16KB（.data＋.bss＋.noinit＋スタック 4KB）以内、ヒープなし、malloc 系を持ち込まない（NFR-04） | `tools/check_size.py` |
+| スタック | 可変長配列・再帰がない。最悪の深さ（main からの最深の経路＋割り込みの入れ子＋例外の枠）が 4KB に収まる | `tools/stack_report.py` |
+| ISR | ループがない。命令数からの見積もりで各 20μs 以内（NFR-03） | `tools/isr_report.py` |
+
+使用量（P5 の時点、CI の結果）：
+
+| プリセット | Flash | RAM | スタックの最悪の深さ |
+| --- | --- | --- | --- |
+| target-release（`-Os -g`） | 14,584 / 65,536 バイト（22.3%） | 5,684 / 16,384 バイト（34.7%） | 1,560 / 4,096 バイト（38.1%） |
+| target-debug（`-Og -g3`） | 14,108 / 65,536 バイト（21.5%） | 5,684 / 16,384 バイト（34.7%） | 1,504 / 4,096 バイト（36.7%） |
+
+クロック・ピン・割り込みの優先度は [ADR-0005](docs/adr/ADR-0005-clock-pins-peripherals.md) と `bsp/stm32f4/pinmap.h` にあります。
+
 ## 依存しているもの（submodule）
 
 | パス | 版 |
 | --- | --- |
 | `external/iot-common-spec` | タグ `v0.2.1` |
 | `third_party/unity` | ThrowTheSwitch/Unity タグ `v2.7.0` |
+| `third_party/cmsis_core` | STMicroelectronics/cmsis_core タグ `v5.9.0_20250520`（STM32CubeF4 v1.29.0） |
+| `third_party/cmsis_device_f4` | STMicroelectronics/cmsis_device_f4 タグ `v2.6.12`（STM32CubeF4 v1.29.0） |
+| `third_party/stm32f4xx_hal_driver` | STMicroelectronics/stm32f4xx_hal_driver タグ `v1.8.6`（STM32CubeF4 v1.29.0。LL のヘッダだけを使う） |
 
 ## フェーズの進み具合
 
@@ -158,8 +196,8 @@ CI はコンテナを使わず、同じ `tools/quality.sh` を直接呼びます
 | P1 | ホスト版の骨組み・UART・契約テスト | 完了 |
 | P2 | 温度計測と状態遷移 | 完了 |
 | P3 | ボタン・警報・ヘルス | 完了 |
-| P4 | 品質ゲート | 実装済み（PR 中） |
-| P5 | STM32 ターゲット版 | 未着手 |
+| P4 | 品質ゲート | 完了 |
+| P5 | STM32 ターゲット版 | 実装済み（PR 中、実機では未確認） |
 | P6 | Renode | 未着手 |
 | P7 | 書類の仕上げ | 未着手 |
 
