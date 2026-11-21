@@ -37,18 +37,19 @@ static void f_pwm(uint16_t pm)
 
 static void f_led(led_t led, bool on)
 {
-    (void)led;
-    (void)on;
+    if ((size_t)led < 3u) {
+        g_fake.led[led] = on;
+    }
 }
 
 static void f_buzzer(bool on)
 {
-    (void)on;
+    g_fake.buzzer = on;
 }
 
 static bool f_button(void)
 {
-    return false;
+    return g_fake.button;
 }
 
 static size_t f_read(uint8_t *buf, size_t cap)
@@ -72,6 +73,7 @@ static size_t f_write(const uint8_t *buf, size_t len)
 
 static void f_refresh(void)
 {
+    g_fake.wdt_refreshes++;
 }
 
 static reset_reason_t f_reason(void)

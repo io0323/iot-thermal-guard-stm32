@@ -5,6 +5,13 @@
  * main/firmware.c（app・service を含む）を手書きのフェイクのポートにつなぎ、1ms ずつ仮想時間を進める。
  * シナリオ CSV の温度と event で ADC の値を決め、PWM・送信フレーム・状態の時系列を記録する。
  * 上位役として、既定で 1000ms ごとに HEARTBEAT を送る（上位断が起きないように）。
+ *
+ * - ボタン：CSV の button_down〜button_up の間、button_pressed() が true を返す
+ * - 疑似ウォッチドッグ：最後の wdt->refresh() から500ms で切れる（hang に限らず、いつでも見張る）。切れたら
+ *   フェイクのポートと firmware を初期化し直して再起動を模擬する（reset_reason は watchdog、回数は＋1、
+ *   entropy を変えて別の boot_id にする）。uptime_ms は 0 から数え直すが、仮想時間とシナリオの時刻は続く（#35）
+ * - hang：ファームウェアのループ（firmware_poll）を止める。監視は続けるので、500ms 後に再起動する
+ * - 記録の時刻はすべて仮想時間（uptime_ms ではない）
  */
 #ifndef TESTS_SIM_HARNESS_H
 #define TESTS_SIM_HARNESS_H
@@ -38,6 +45,23 @@ typedef struct {
     link_frame_t f;
 } sim_frame_t;
 
+/** オンとオフ（ブザー）。 */
+typedef struct {
+    uint32_t t_ms;
+    bool on;
+} sim_onoff_t;
+
+/** 起動（firmware_init）。 */
+typedef struct {
+    uint32_t t_ms;
+    uint32_t boot_id;
+    reset_reason_t reason;
+    uint16_t count;
+} sim_boot_t;
+
+#define SIM_MAX_BOOTS 8u
+#define SIM_WDT_TIMEOUT_MS 500u /**< 疑似ウォッチドッグ（ホスト版と同じ） */
+
 /** 記録。 */
 typedef struct {
     sim_pwm_t pwm[SIM_MAX_RECORDS];
@@ -46,6 +70,10 @@ typedef struct {
     size_t n_state;
     sim_frame_t tx[SIM_MAX_RECORDS];
     size_t n_tx;
+    sim_onoff_t buzzer[SIM_MAX_RECORDS];
+    size_t n_buzzer;
+    sim_boot_t boot[SIM_MAX_BOOTS];
+    size_t n_boot;
 } sim_log_t;
 
 /**
@@ -71,6 +99,19 @@ void sim_run_until(uint32_t t_ms);
  * @param f フレーム（seq は種別ごとに自動で振る）
  */
 void sim_send(link_frame_t f);
+
+/**
+ * @brief いまの LED（最後に書いた値）。
+ * @param led LED
+ * @return 点灯なら true
+ */
+bool sim_led(led_t led);
+
+/**
+ * @brief いまのブザー（最後に書いた値）。
+ * @return 鳴っていれば true
+ */
+bool sim_buzzer(void);
 
 /**
  * @brief 次に進める時刻。
