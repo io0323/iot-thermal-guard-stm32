@@ -32,11 +32,15 @@ tg_unit_test(test_scheduler unit/test_scheduler.c)
 tg_unit_test(test_report unit/test_report.c)
 tg_unit_test(test_boot_id unit/test_boot_id.c)
 tg_unit_test(test_temp_sensor unit/test_temp_sensor.c)
+tg_unit_test(test_button unit/test_button.c)
+tg_unit_test(test_health unit/test_health.c)
+tg_unit_test(test_diag unit/test_diag.c)
 # app
 tg_unit_test(test_command_handler unit/test_command_handler.c)
 tg_unit_test(test_cooling_policy unit/test_cooling_policy.c)
 tg_unit_test(test_safety_fsm unit/test_safety_fsm.c)
 tg_unit_test(test_event_map unit/test_event_map.c)
+tg_unit_test(test_alarm unit/test_alarm.c)
 # main（firmware.c の配線をフェイクのポートで確かめる）
 tg_unit_test(test_firmware unit/test_firmware.c)
 

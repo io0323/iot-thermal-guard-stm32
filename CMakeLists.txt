@@ -44,6 +44,9 @@ tg_warnings(tg_lib)
 
 add_library(tg_service STATIC
     service/boot_id.c
+    service/button.c
+    service/diag.c
+    service/health.c
     service/link.c
     service/link_frame.c
     service/report.c
@@ -56,6 +59,7 @@ target_link_libraries(tg_service PUBLIC tg_lib tg_ports)
 tg_warnings(tg_service)
 
 add_library(tg_app STATIC
+    app/alarm.c
     app/command_handler.c
     app/cooling_policy.c
     app/event_map.c
