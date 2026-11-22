@@ -45,7 +45,7 @@ iot-thermal-guard-stm32/
 | `host-debug` | `build/host` | ホスト版＋全テスト。ASan・UBSan あり。契約テストは `build/host/mcu_c_01` を起動する | P1〜 |
 | `host-coverage` | `build/host-cov` | gcov 付き。gcovr で app・service の行カバレッジを集計 | P4〜 |
 | `target-debug`／`target-release` | `build/target-debug`／`build/target-release` | arm-none-eabi-gcc、`-Og`／`-Os`。.elf・.bin・.map | P5〜 |
-| `target-renode` | `build/renode` | target と同じソースに `ADC_SOFTWARE_START=1`（Renode 用の ADC 開始方法） | P6〜 |
+| `target-renode` | `build/target-renode` | target と同じソースに `ADC_SOFTWARE_START=1`（Renode 用の ADC 開始方法） | P6〜 |
 
 ### コンパイルオプション（共通）
 
@@ -392,8 +392,8 @@ mcu_c_01 [--temp <℃>] [--scenario <file.csv>] [--log <file.jsonl>] [UART_PATH]
 | --- | --- | --- |
 | host | submodule ごと取り出し → host-debug でビルド → CTest → `uv tool install "iotspec @ git+https://github.com/io0323/iot-common-spec@v0.2.1"` → 契約テスト → JUnit・ログを成果物に | P1 |
 | quality | host-coverage で gcovr（app・service の行 80% 以上）、cppcheck（MISRA アドオン）、clang-tidy、lizard（循環的複雑度 10 以下）、Doxygen の警告ゼロ、malloc・float の grep | P4 |
-| target | arm-none-eabi-gcc で target-release。`tools/check_size.py` が Flash 64KB・RAM 16KB 以内を確かめる | P5 |
-| renode | target-renode をビルドして renode-test | P6 |
+| target | arm-none-eabi-gcc で target-debug と target-release。`tools/check_size.py` が Flash 64KB・RAM 16KB 以内を確かめる | P5 |
+| renode | target-renode をビルドして renode-test。続けて Renode で契約テスト（先に仮想時間と実時間の比を確かめる。ADR-0006） | P6 |
 
 MQTT ブローカーは使わない。契約テストは10秒の途絶を含むため約40〜60秒かかる。ARM のツールチェーンと Renode の版は、それぞれ P5・P6 で固定し ADR に記録する。
 
@@ -407,7 +407,7 @@ Claude Code には7フェーズに分けて渡す。P1 で契約テストが通�
 | P2 温度計測と状態遷移 | gen\_ntc\_table.py と変換表、median・moving\_avg、temp\_sensor の本版、safety\_fsm の本版（遷移表の全行）、event\_map、INIT の本版（フィルタ充填・2秒で故障）、SET\_THRESHOLD の検証、sim\_harness と CSV、ホスト版の `--scenario`（温度と、センサー・ADC の event） | ① 遷移表の全行と「どの行にも当たらない」を状態ごとにテスト ② 変換表の両端・範囲外・故障の境界（49・50・4045・4046）をテスト ③ シナリオで NFR-01（crit を超えてからファン100% まで 2.5秒以内）と故障の検出が合格 ④ P1 の全条件を維持 |
 | P3 ボタン・警報・ヘルス | button、alarm、health と疑似ウォッチドッグ（execv）、リセット要因・回数（ホスト）、diag、シナリオの event（ボタン・hang）、ホスト版を pty 越しに動かす小さな pytest（iotspec のフレーム実装を使う） | ① シナリオで承認の流れ（1回目消音、2回目承認、条件未達の承認は無効）、長押し3秒、SENSOR\_FAULT からの復帰が合格 ② pytest で hang → 再起動 → 新しい boot\_id で STATE→BOOT、seq が 0 から ③ P2 までの全条件を維持 |
 | P4 品質ゲート | host-coverage、gcovr、cppcheck（MISRA）、clang-tidy、lizard、Doxygen、違反の逸脱を ADR に記録、CI の quality ジョブ | ① app・service の行カバレッジ 80% 以上 ② 検査できる範囲で MISRA 違反ゼロ（逸脱は ADR 付き） ③ 循環的複雑度 10 以下 ④ 公開関数の Doxygen 警告ゼロ ⑤ 全ジョブが CI で緑 |
-| P5 STM32 ターゲット版 | ツールチェーンの版の固定、cmsis\_device\_f4・stm32f4xx\_hal\_driver（LL）の submodule、起動コードとリンカスクリプト、bsp\_stm32f4（84MHz、SysTick、TIM2→ADC1→DMA2、TIM3 PWM、USART2、EXTI、IWDG、RCC\_CSR、UID、entropy、DWT）、pinmap.h、スタックペインティング、check\_size.py、CI の target ジョブ | ① target-debug・target-release が警告ゼロでビルド ② Flash 64KB・RAM 16KB 以内を CI で確認 ③ ISR が「フラグとバッファだけ」であることをレビュー観点表で確認 ④ ホスト側の全テストと契約テストを維持（実機での動作確認はしない） |
+| P5 STM32 ターゲット版 | ツールチェーンの版の固定、cmsis\_device\_f4・stm32f4xx\_hal\_driver（LL）の submodule、起動コードとリンカスクリプト、bsp\_stm32f4（84MHz、SysTick、TIM2→ADC1→DMA2、TIM3 PWM、USART2、IWDG、RCC\_CSR、UID、entropy、DWT）、pinmap.h、スタックペインティング、check\_size.py、CI の target ジョブ | ① target-debug・target-release が警告ゼロでビルド ② Flash 64KB・RAM 16KB 以内を CI で確認 ③ ISR が「フラグとバッファだけ」であることをレビュー観点表で確認 ④ ホスト側の全テストと契約テストを維持（実機での動作確認はしない） |
 | P6 Renode | 最初に試行：Renode の UART を pty に出して `iotspec-contract --uart` でつなぐ。その後 nucleo\_f401re.repl（stm32f4.repl をもとにメモリを F401 に合わせ、STM32\_ADC を足す）、target-renode、Robot のテスト、CI の renode ジョブ | ① Robot のテスト（起動・周期送信・CMD/ACK・ウォッチドッグ・PWM）が CI で合格 ② 試行の結果（Renode で契約テストが通るか、通らないなら理由）を ADR に記録 ③ ADC の開始方法が実機と違うことを README とテスト仕様書に明記 |
 | P7 書類の仕上げ | docs/test-spec.md（FR・NFR とテストの対応表）、README の完成（構成図、動かし方、検証の範囲と実機フェーズに残すもの）、ADR の一覧、ホスト版と契約テストの実行例 | ① FR-01〜14・NFR-01〜10 がすべてテストか「実機フェーズで確認」に紐付く ② README の手順で新しい環境から契約テストまで通る |
 
